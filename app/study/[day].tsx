@@ -28,6 +28,8 @@ export default function StudyScreen() {
   const [loading, setLoading] = useState(true);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [bookmarkedIds, setBookmarkedIds] = useState<Set<string>>(new Set());
+  // 키보드(F 키)로 플립을 트리거하기 위한 신호 값 (증가할 때마다 한 번 플립)
+  const [flipSignal, setFlipSignal] = useState(0);
 
   const goHome = () => {
     // 항상 홈(탭의 메인 화면)으로 이동
@@ -134,6 +136,8 @@ export default function StudyScreen() {
   };
 
   const flipCard = () => {
+    // flipSignal을 증가시켜 현재 활성 카드만 한 번 뒤집히도록 신호 보냄
+    setFlipSignal((prev) => prev + 1);
   };
 
   const handlePrevious = () => {
@@ -236,7 +240,13 @@ export default function StudyScreen() {
         showsHorizontalScrollIndicator={false}
         onViewableItemsChanged={onViewableItemsChanged}
         viewabilityConfig={viewabilityConfig}
-        renderItem={({ item }) => <FlipCard word={item} />}
+        renderItem={({ item, index }) => (
+          <FlipCard
+            word={item}
+            isActive={index === currentIndex}
+            flipSignal={flipSignal}
+          />
+        )}
         keyExtractor={(item) => item.id}
         getItemLayout={(data, index) => ({
           length: width,

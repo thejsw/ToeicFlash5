@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
 import Animated, {
   useSharedValue,
@@ -15,9 +15,13 @@ const CARD_WIDTH = width - 40;
 type FlipCardProps = {
   word: VocabularyWord;
   onFlip?: (isFlipped: boolean) => void;
+  /** 외부에서 플립을 트리거하기 위한 신호 값 (변할 때마다 한 번 뒤집힘) */
+  flipSignal?: number;
+  /** 현재 화면에서 활성 카드인지 여부 (true일 때만 flipSignal에 반응) */
+  isActive?: boolean;
 };
 
-export default function FlipCard({ word, onFlip }: FlipCardProps) {
+export default function FlipCard({ word, onFlip, flipSignal, isActive }: FlipCardProps) {
   const { colors } = useTheme();
   const [isFlipped, setIsFlipped] = useState(false);
   const rotation = useSharedValue(0);
@@ -28,6 +32,14 @@ export default function FlipCard({ word, onFlip }: FlipCardProps) {
     setIsFlipped(newFlippedState);
     onFlip?.(newFlippedState);
   };
+
+  // 부모에서 flipSignal을 변경하면, 활성 카드만 키보드로 플립되도록 처리
+  useEffect(() => {
+    if (flipSignal === undefined) return;
+    if (!isActive) return;
+    handleFlip();
+    // flipSignal이 바뀔 때마다 한 번만 실행
+  }, [flipSignal, isActive]);
 
   const frontAnimatedStyle = useAnimatedStyle(() => {
     const rotateValue = interpolate(rotation.value, [0, 180], [0, 180]);
