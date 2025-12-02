@@ -67,7 +67,13 @@ export default function HomeScreen() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={[
+          styles.scrollContent,
+          // 광고 영역이 가려지지 않도록 하단 여백 추가
+          { paddingBottom: 24 },
+        ]}>
         <View style={styles.grid}>
           {Array.from({ length: 20 }, (_, i) => i + 1).map((day) => (
             <TouchableOpacity
@@ -99,6 +105,7 @@ export default function HomeScreen() {
         </View>
       </ScrollView>
 
+      {/* 항상 화면 가장 아래에 위치하는 광고 배너 */}
       <AdBanner />
     </View>
   );
