@@ -29,6 +29,11 @@ export default function StudyScreen() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [bookmarkedIds, setBookmarkedIds] = useState<Set<string>>(new Set());
 
+  const goHome = () => {
+    // 항상 홈(탭의 메인 화면)으로 이동
+    router.push('/(tabs)');
+  };
+
   useEffect(() => {
     loadWords();
     loadBookmarks();
@@ -181,7 +186,7 @@ export default function StudyScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+        <TouchableOpacity onPress={goHome} style={styles.backButton}>
           <ChevronLeft size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: colors.text }]}>Day {day}</Text>
