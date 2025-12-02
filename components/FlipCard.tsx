@@ -33,13 +33,13 @@ export default function FlipCard({ word, onFlip, flipSignal, isActive }: FlipCar
     onFlip?.(newFlippedState);
   };
 
-  // 부모에서 flipSignal을 변경하면, 활성 카드만 키보드로 플립되도록 처리
+  // 부모에서 flipSignal을 변경하면, "그 시점에 활성인" 카드만 한 번 플립
   useEffect(() => {
     if (flipSignal === undefined) return;
     if (!isActive) return;
     handleFlip();
-    // flipSignal이 바뀔 때마다 한 번만 실행
-  }, [flipSignal, isActive]);
+    // flipSignal이 바뀔 때만 반응 (isActive 변경만으로는 재실행 안 함)
+  }, [flipSignal]);
 
   const frontAnimatedStyle = useAnimatedStyle(() => {
     const rotateValue = interpolate(rotation.value, [0, 180], [0, 180]);

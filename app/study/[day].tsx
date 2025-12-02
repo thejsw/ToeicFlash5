@@ -28,6 +28,8 @@ export default function StudyScreen() {
   const [loading, setLoading] = useState(true);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [bookmarkedIds, setBookmarkedIds] = useState<Set<string>>(new Set());
+  // 프로그레스 바 실제 너비 (onLayout으로 측정)
+  const [progressBarWidth, setProgressBarWidth] = useState(width - 40);
   // 키보드(F 키)로 플립을 트리거하기 위한 신호 값 (증가할 때마다 한 번 플립)
   const [flipSignal, setFlipSignal] = useState(0);
 
@@ -48,9 +50,10 @@ export default function StudyScreen() {
   useEffect(() => {
     const handleKeyPress = (event: KeyboardEvent) => {
       if (event.key === 'ArrowLeft') {
-        handlePrevious();
+        // 키보드로 이동 시에는 애니메이션 없이 즉시 이동
+        handlePrevious(false);
       } else if (event.key === 'ArrowRight') {
-        handleNext();
+        handleNext(false);
       } else if (event.key === 'f' || event.key === 'F') {
         event.preventDefault();
         flipCard();
@@ -140,30 +143,58 @@ export default function StudyScreen() {
     setFlipSignal((prev) => prev + 1);
   };
 
-  const handlePrevious = () => {
-    if (currentIndex > 0) {
-      const newIndex = currentIndex - 1;
-      setCurrentIndex(newIndex);
-      flatListRef.current?.scrollToIndex({ index: newIndex, animated: true });
-    }
+  const handlePrevious = (animated: boolean = true) => {
+    setCurrentIndex((prev) => {
+      if (prev <= 0) return prev;
+      const newIndex = prev - 1;
+      flatListRef.current?.scrollToIndex({ index: newIndex, animated });
+      return newIndex;
+    });
   };
 
-  const handleNext = () => {
-    if (currentIndex < words.length - 1) {
-      const newIndex = currentIndex + 1;
-      setCurrentIndex(newIndex);
-      flatListRef.current?.scrollToIndex({ index: newIndex, animated: true });
-    }
+  const handleNext = (animated: boolean = true) => {
+    setCurrentIndex((prev) => {
+      if (prev >= words.length - 1) return prev;
+      const newIndex = prev + 1;
+      flatListRef.current?.scrollToIndex({ index: newIndex, animated });
+      return newIndex;
+    });
   };
 
   const handleProgressBarPress = (event: any) => {
-    const { locationX } = event.nativeEvent;
-    const progressBarWidth = event.currentTarget.offsetWidth || 300;
-    const percentage = locationX / progressBarWidth;
-    const newIndex = Math.floor(percentage * words.length);
-    const clampedIndex = Math.max(0, Math.min(newIndex, words.length - 1));
+    if (!words.length) return;
+
+    const barWidth = progressBarWidth > 0 ? progressBarWidth : width - 40;
+
+    const nativeEvent = event?.nativeEvent ?? event;
+    const rawX =
+      nativeEvent?.locationX ??
+      nativeEvent?.pageX ??
+      nativeEvent?.offsetX ??
+      nativeEvent?.x;
+
+    if (typeof rawX !== 'number' || !Number.isFinite(rawX)) {
+      return;
+    }
+
+    const clampedX = Math.max(0, Math.min(rawX, barWidth));
+    const percentage = clampedX / barWidth;
+
+    // 10단어(10페이지) 단위로 끊어서 대략적인 위치로 이동
+    const approxIndex = Math.floor(percentage * words.length);
+    const blockSize = 10;
+    const blockIndex = Math.floor(approxIndex / blockSize);
+    const coarseIndex = blockIndex * blockSize;
+
+    const clampedIndex = Math.max(
+      0,
+      Math.min(coarseIndex, words.length - 1)
+    );
+
+    if (!Number.isFinite(clampedIndex)) return;
+
     setCurrentIndex(clampedIndex);
-    flatListRef.current?.scrollToIndex({ index: clampedIndex, animated: true });
+    flatListRef.current?.scrollToIndex({ index: clampedIndex, animated: false });
   };
 
   const onViewableItemsChanged = useRef(({ viewableItems }: any) => {
@@ -186,6 +217,8 @@ export default function StudyScreen() {
 
   const currentWord = words[currentIndex];
   const isBookmarked = currentWord && bookmarkedIds.has(currentWord.id);
+  const progressPercent =
+    words.length > 0 ? ((currentIndex + 1) / words.length) * 100 : 0;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -219,12 +252,14 @@ export default function StudyScreen() {
         <TouchableOpacity
           style={[styles.progressBar, { backgroundColor: colors.border }]}
           onPress={handleProgressBarPress}
-          activeOpacity={0.7}>
+          activeOpacity={0.7}
+          onLayout={(e) => setProgressBarWidth(e.nativeEvent.layout.width)}
+          disabled={!words.length}>
           <View
             style={[
               styles.progressFill,
               {
-                width: `${((currentIndex + 1) / words.length) * 100}%`,
+                width: `${progressPercent}%`,
                 backgroundColor: colors.primary,
               },
             ]}
@@ -258,7 +293,7 @@ export default function StudyScreen() {
       <View style={[styles.navigation, { backgroundColor: colors.surface, borderTopColor: colors.border }]}>
         <TouchableOpacity
           style={[styles.navButton, currentIndex === 0 && styles.navButtonDisabled]}
-          onPress={handlePrevious}
+          onPress={() => handlePrevious(true)}
           disabled={currentIndex === 0}>
           <ChevronLeft
             size={24}
@@ -280,7 +315,7 @@ export default function StudyScreen() {
             styles.navButton,
             currentIndex === words.length - 1 && styles.navButtonDisabled,
           ]}
-          onPress={handleNext}
+          onPress={() => handleNext(true)}
           disabled={currentIndex === words.length - 1}>
           <Text
             style={[
