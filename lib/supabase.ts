@@ -1,8 +1,26 @@
 import { createClient } from '@supabase/supabase-js';
+import Constants from 'expo-constants';
 import 'react-native-url-polyfill/auto';
 
-const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL!;
-const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
+type SupabaseExtras = {
+  supabaseUrl?: string;
+  supabaseAnonKey?: string;
+};
+
+const extras = (Constants.expoConfig?.extra ??
+  Constants.manifest?.extra ??
+  {}) as SupabaseExtras;
+
+const supabaseUrl =
+  process.env.EXPO_PUBLIC_SUPABASE_URL ?? extras.supabaseUrl ?? '';
+const supabaseAnonKey =
+  process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? extras.supabaseAnonKey ?? '';
+
+if (!supabaseUrl || !supabaseAnonKey) {
+  throw new Error(
+    'Supabase credentials are missing. Provide EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY.'
+  );
+}
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 

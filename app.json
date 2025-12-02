@@ -19,6 +19,10 @@
     "plugins": ["expo-router", "expo-font", "expo-web-browser"],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "supabaseUrl": "https://fruuhjybiniukkixfdof.supabase.co",
+      "supabaseAnonKey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZydXVoanliaW5pdWtraXhmZG9mIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ1NjQ4MTIsImV4cCI6MjA4MDE0MDgxMn0.p_ma-q9qgR_RHgCpvOFrDBKIpRActpOOy8ZB3FjEH_8"
     }
   }
 }
