@@ -34,4 +34,6 @@ yarn-error.*
 # typescript
 *.tsbuildinfo
 
-*.json
+# Ensure package.json is included
+!package.json
+!package-lock.json

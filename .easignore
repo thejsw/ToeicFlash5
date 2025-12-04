@@ -1,0 +1,28 @@
+# EAS Build ignore file
+# Only exclude files that should NOT be in the build
+# package.json MUST be included!
+
+node_modules/
+.expo/
+dist/
+web-build/
+*.tsbuildinfo
+.env*.local
+.env
+.DS_Store
+*.pem
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+.metro-health-check*
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# Explicitly DO NOT ignore package.json - it's required!
+# !package.json
+# !package-lock.json
+

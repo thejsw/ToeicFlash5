@@ -12,6 +12,13 @@ const config: ExpoConfig = {
   ios: {
     supportsTablet: true,
   },
+  android: {
+    package: 'com.boltexponativewind',
+    adaptiveIcon: {
+      foregroundImage: './assets/images/icon.png',
+      backgroundColor: '#ffffff',
+    },
+  },
   web: {
     bundler: 'metro',
     output: 'single',
@@ -24,6 +31,9 @@ const config: ExpoConfig = {
   extra: {
     supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL,
     supabaseAnonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
+    eas: {
+      projectId: '62c17608-5381-44d9-acbc-3f4c7166205f',
+    },
   },
 };
 
