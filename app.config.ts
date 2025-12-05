@@ -13,7 +13,7 @@ const config: ExpoConfig = {
     supportsTablet: true,
   },
   android: {
-    package: 'com.boltexponativewind',
+    package: 'com.thejsw.toeicflashcardvoca',
     adaptiveIcon: {
       foregroundImage: './assets/images/icon.png',
       backgroundColor: '#ffffff',
