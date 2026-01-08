@@ -10,9 +10,10 @@ import {
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useTheme } from '@/lib/theme';
 import { ChevronLeft } from 'lucide-react-native';
-import { generateQuizQuestions } from '@/lib/llm';
+import { generateQuizQuestionsWithRetry } from '@/lib/llm';
 import { QuizQuestion } from '@/types/quiz';
 import { supabase } from '@/lib/supabase';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function DayQuizScreen() {
   const router = useRouter();
@@ -35,11 +36,32 @@ export default function DayQuizScreen() {
       setLoading(true);
       setError(null);
 
+      const dayNum = parseInt(day || '1');
+      const storageKey = `quiz_generated_day_${dayNum}`;
+
+      // Day당 퀴즈 생성 1회 제한: 이미 생성된 퀴즈가 있는지 확인
+      const cachedQuiz = await AsyncStorage.getItem(storageKey);
+      if (cachedQuiz) {
+        try {
+          const parsedQuestions = JSON.parse(cachedQuiz) as QuizQuestion[];
+          if (Array.isArray(parsedQuestions) && parsedQuestions.length > 0) {
+            console.log(`Day ${dayNum} 퀴즈를 캐시에서 불러옵니다.`);
+            setQuestions(parsedQuestions);
+            setUserAnswers(new Array(parsedQuestions.length).fill(''));
+            return;
+          }
+        } catch (parseError) {
+          console.warn('캐시된 퀴즈 파싱 실패, 새로 생성합니다.', parseError);
+          // 파싱 실패 시 캐시 삭제
+          await AsyncStorage.removeItem(storageKey);
+        }
+      }
+
       // Day의 단어 목록 가져오기
       const { data: wordsData, error: wordsError } = await supabase
         .from('vocabulary_words')
         .select('word')
-        .eq('day', parseInt(day || '1'))
+        .eq('day', dayNum)
         .order('order_index');
 
       if (wordsError) throw wordsError;
@@ -50,18 +72,27 @@ export default function DayQuizScreen() {
         throw new Error('단어를 찾을 수 없습니다.');
       }
 
-      // LLM으로 퀴즈 생성
-      const quizQuestions = await generateQuizQuestions(
-        parseInt(day || '1'),
-        wordList
+      // LLM으로 퀴즈 생성 (재시도 로직 포함)
+      const quizQuestions = await generateQuizQuestionsWithRetry(
+        dayNum,
+        wordList,
+        1 // 최대 1회 재시도
       );
+
+      // 생성 성공 시 AsyncStorage에 저장
+      await AsyncStorage.setItem(storageKey, JSON.stringify(quizQuestions));
 
       setQuestions(quizQuestions);
       setUserAnswers(new Array(quizQuestions.length).fill(''));
     } catch (err: any) {
       console.error('Error loading quiz:', err);
-      setError(err.message || '퀴즈를 불러오는 중 오류가 발생했습니다.');
-      Alert.alert('오류', err.message || '퀴즈를 불러오는 중 오류가 발생했습니다.');
+      const errorMessage = err.message || '퀴즈를 불러오는 중 오류가 발생했습니다.';
+      setError(errorMessage.includes('재시도') || err.message?.includes('Retrying') 
+        ? '문제 생성에 실패했어요. 잠시 후 다시 시도해주세요.' 
+        : errorMessage);
+      Alert.alert('오류', errorMessage.includes('재시도') || err.message?.includes('Retrying')
+        ? '문제 생성에 실패했어요. 잠시 후 다시 시도해주세요.'
+        : errorMessage);
     } finally {
       setLoading(false);
     }
@@ -88,7 +119,7 @@ export default function DayQuizScreen() {
     } else {
       // 마지막 문제 완료 - 결과 화면으로 이동
       router.push({
-        pathname: `/study/${day}/quiz/result`,
+        pathname: `/study/${day}/quiz/result` as any,
         params: {
           questions: JSON.stringify(questions),
           userAnswers: JSON.stringify(userAnswers),

@@ -37,11 +37,12 @@ const config: ExpoConfig = {
     typedRoutes: true,
   },
   extra: {
-    // fallback용으로 extra에도 저장 (lib/supabase.ts에서 process.env가 없을 때 사용)
-    // EAS 빌드: eas.json의 env → process.env → 여기서 extra로 복사 → lib/supabase.ts에서 사용
-    // 로컬 개발: .env → process.env → 여기서 extra로 복사 → lib/supabase.ts에서 사용
+    // fallback용으로 extra에도 저장 (lib/supabase.ts와 lib/llm.ts에서 process.env가 없을 때 사용)
+    // EAS 빌드: eas.json의 env → process.env → 여기서 extra로 복사 → lib/supabase.ts, lib/llm.ts에서 사용
+    // 로컬 개발: .env → process.env → 여기서 extra로 복사 → lib/supabase.ts, lib/llm.ts에서 사용
     supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL,
     supabaseAnonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
+    openaiApiKey: process.env.EXPO_PUBLIC_OPENAI_API_KEY,
     eas: {
       projectId: '62c17608-5381-44d9-acbc-3f4c7166205f',
     },

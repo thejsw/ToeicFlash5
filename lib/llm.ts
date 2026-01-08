@@ -1,7 +1,24 @@
 import { QuizQuestion } from '@/types/quiz';
+import Constants from 'expo-constants';
 
-const OPENAI_API_KEY = process.env.EXPO_PUBLIC_OPENAI_API_KEY || '';
+type Extras = {
+  openaiApiKey?: string;
+};
+
+const extras = (Constants.expoConfig?.extra ?? Constants.manifest?.extra ?? {}) as Extras;
+
+const OPENAI_API_KEY = process.env.EXPO_PUBLIC_OPENAI_API_KEY || extras.openaiApiKey || '';
 const OPENAI_API_URL = 'https://api.openai.com/v1/chat/completions';
+
+// 디버그: 환경 변수 확인
+console.log(
+  'OPENAI KEY EXISTS:',
+  !!OPENAI_API_KEY,
+  'from env:',
+  !!process.env.EXPO_PUBLIC_OPENAI_API_KEY,
+  'from extras:',
+  !!extras.openaiApiKey
+);
 
 export async function generateQuizQuestions(
   day: number,
@@ -119,6 +136,32 @@ Make sure to use the vocabulary words naturally in the questions.`;
     return validatedQuestions;
   } catch (error) {
     console.error('Error generating quiz questions:', error);
+    throw error;
+  }
+}
+
+/**
+ * 퀴즈 생성 함수 (재시도 로직 포함)
+ * 네트워크 오류나 일시적인 오류 발생 시 최대 1회 재시도
+ * @param day Day 번호
+ * @param words 단어 목록
+ * @param retry 재시도 횟수 (기본값: 1)
+ * @returns 생성된 퀴즈 문제 배열
+ */
+export async function generateQuizQuestionsWithRetry(
+  day: number,
+  words: string[],
+  retry = 1
+): Promise<QuizQuestion[]> {
+  try {
+    return await generateQuizQuestions(day, words);
+  } catch (error) {
+    if (retry > 0) {
+      console.warn('Retrying quiz generation...', error);
+      // 짧은 지연 후 재시도
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      return generateQuizQuestionsWithRetry(day, words, retry - 1);
+    }
     throw error;
   }
 }
