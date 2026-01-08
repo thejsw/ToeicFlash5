@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   Dimensions,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
 import { supabase, VocabularyWord } from '@/lib/supabase';
 import FlipCard from '@/components/FlipCard';
@@ -30,6 +31,11 @@ export default function BookmarksScreen() {
   }, []);
 
   useEffect(() => {
+    // 웹 환경에서만 키보드 이벤트 리스너 등록
+    if (Platform.OS !== 'web' || typeof window === 'undefined') {
+      return;
+    }
+
     const handleKeyPress = (event: KeyboardEvent) => {
       if (event.key === 'ArrowLeft') {
         handlePrevious();

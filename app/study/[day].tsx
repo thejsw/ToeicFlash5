@@ -7,6 +7,7 @@ import {
   FlatList,
   Dimensions,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { supabase, VocabularyWord } from '@/lib/supabase';
@@ -48,6 +49,11 @@ export default function StudyScreen() {
   }, [currentIndex]);
 
   useEffect(() => {
+    // 웹 환경에서만 키보드 이벤트 리스너 등록
+    if (Platform.OS !== 'web' || typeof window === 'undefined') {
+      return;
+    }
+
     const handleKeyPress = (event: KeyboardEvent) => {
       if (event.key === 'ArrowLeft') {
         // 키보드로 이동 시에는 애니메이션 없이 즉시 이동
@@ -291,46 +297,56 @@ export default function StudyScreen() {
       />
 
       <View style={[styles.navigation, { backgroundColor: colors.surface, borderTopColor: colors.border }]}>
-        <TouchableOpacity
-          style={[styles.navButton, currentIndex === 0 && styles.navButtonDisabled]}
-          onPress={() => handlePrevious(true)}
-          disabled={currentIndex === 0}>
-          <ChevronLeft
-            size={24}
-            color={currentIndex === 0 ? colors.bookmarkEmpty : colors.text}
-          />
-          <Text
-            style={[
-              styles.navText,
-              {
-                color: currentIndex === 0 ? colors.bookmarkEmpty : colors.text,
-              },
-            ]}>
-            Previous
-          </Text>
-        </TouchableOpacity>
+        {currentIndex === words.length - 1 ? (
+          <TouchableOpacity
+            style={[styles.completeButton, { backgroundColor: colors.primary }]}
+            onPress={() => router.push(`/study/${day}/complete`)}>
+            <Text style={styles.completeButtonText}>Day 학습 완료</Text>
+          </TouchableOpacity>
+        ) : (
+          <>
+            <TouchableOpacity
+              style={[styles.navButton, currentIndex === 0 && styles.navButtonDisabled]}
+              onPress={() => handlePrevious(true)}
+              disabled={currentIndex === 0}>
+              <ChevronLeft
+                size={24}
+                color={currentIndex === 0 ? colors.bookmarkEmpty : colors.text}
+              />
+              <Text
+                style={[
+                  styles.navText,
+                  {
+                    color: currentIndex === 0 ? colors.bookmarkEmpty : colors.text,
+                  },
+                ]}>
+                Previous
+              </Text>
+            </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[
-            styles.navButton,
-            currentIndex === words.length - 1 && styles.navButtonDisabled,
-          ]}
-          onPress={() => handleNext(true)}
-          disabled={currentIndex === words.length - 1}>
-          <Text
-            style={[
-              styles.navText,
-              {
-                color: currentIndex === words.length - 1 ? colors.bookmarkEmpty : colors.text,
-              },
-            ]}>
-            Next
-          </Text>
-          <ChevronRight
-            size={24}
-            color={currentIndex === words.length - 1 ? colors.bookmarkEmpty : colors.text}
-          />
-        </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.navButton,
+                currentIndex === words.length - 1 && styles.navButtonDisabled,
+              ]}
+              onPress={() => handleNext(true)}
+              disabled={currentIndex === words.length - 1}>
+              <Text
+                style={[
+                  styles.navText,
+                  {
+                    color: currentIndex === words.length - 1 ? colors.bookmarkEmpty : colors.text,
+                  },
+                ]}>
+                Next
+              </Text>
+              <ChevronRight
+                size={24}
+                color={currentIndex === words.length - 1 ? colors.bookmarkEmpty : colors.text}
+              />
+            </TouchableOpacity>
+          </>
+        )}
       </View>
 
       <AdBanner />
@@ -410,6 +426,18 @@ const styles = StyleSheet.create({
   },
   navText: {
     fontSize: 16,
+    fontWeight: '600',
+  },
+  completeButton: {
+    flex: 1,
+    paddingVertical: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  completeButtonText: {
+    color: '#ffffff',
+    fontSize: 18,
     fontWeight: '600',
   },
 });

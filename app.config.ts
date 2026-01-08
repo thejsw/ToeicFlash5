@@ -1,5 +1,12 @@
 import type { ExpoConfig } from 'expo/config';
 
+// 로컬 개발 시 .env 파일 로드 (EAS 빌드에서는 eas.json의 env가 자동으로 process.env에 주입됨)
+try {
+  require('dotenv/config');
+} catch {
+  // dotenv가 없어도 EAS 빌드에서는 문제없음
+}
+
 const config: ExpoConfig = {
   name: 'bolt-expo-nativewind',
   slug: 'bolt-expo-nativewind',
@@ -14,6 +21,7 @@ const config: ExpoConfig = {
   },
   android: {
     package: 'com.thejsw.toeicflashcardvoca',
+    versionCode: 11,
     adaptiveIcon: {
       foregroundImage: './assets/images/icon.png',
       backgroundColor: '#ffffff',
@@ -29,6 +37,9 @@ const config: ExpoConfig = {
     typedRoutes: true,
   },
   extra: {
+    // fallback용으로 extra에도 저장 (lib/supabase.ts에서 process.env가 없을 때 사용)
+    // EAS 빌드: eas.json의 env → process.env → 여기서 extra로 복사 → lib/supabase.ts에서 사용
+    // 로컬 개발: .env → process.env → 여기서 extra로 복사 → lib/supabase.ts에서 사용
     supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL,
     supabaseAnonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
     eas: {
