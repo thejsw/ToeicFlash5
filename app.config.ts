@@ -8,11 +8,11 @@ try {
 }
 
 const config: ExpoConfig = {
-  name: 'bolt-expo-nativewind',
+  name: 'Flash5 TOEIC',
   slug: 'bolt-expo-nativewind',
   version: '1.0.0',
   orientation: 'portrait',
-  icon: './assets/images/icon.png',
+  icon: './assets/images/Flash5Icon.png',
   scheme: 'myapp',
   userInterfaceStyle: 'automatic',
   newArchEnabled: true,
