@@ -115,6 +115,15 @@ export default function StudyScreen() {
   const saveProgress = async () => {
     try {
       await AsyncStorage.setItem(`progress_day_${day}`, currentIndex.toString());
+      
+      // 최대 진행상황도 별도로 저장 (진행상황이 리셋되지 않도록)
+      const maxProgressKey = `max_progress_day_${day}`;
+      const savedMaxProgress = await AsyncStorage.getItem(maxProgressKey);
+      const maxProgress = savedMaxProgress ? parseInt(savedMaxProgress) : -1;
+      
+      if (currentIndex > maxProgress) {
+        await AsyncStorage.setItem(maxProgressKey, currentIndex.toString());
+      }
     } catch (error) {
       console.error('Error saving progress:', error);
     }
@@ -300,7 +309,11 @@ export default function StudyScreen() {
         {currentIndex === words.length - 1 ? (
           <TouchableOpacity
             style={[styles.completeButton, { backgroundColor: colors.primary }]}
-            onPress={() => router.push(`/study/${day}/complete`)}>
+            onPress={async () => {
+              // 학습 완료 상태 저장
+              await AsyncStorage.setItem(`study_completed_day_${day}`, 'true');
+              router.push(`/study/${day}/complete`);
+            }}>
             <Text style={styles.completeButtonText}>Day 학습 완료</Text>
           </TouchableOpacity>
         ) : (

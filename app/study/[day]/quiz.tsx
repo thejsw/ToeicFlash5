@@ -99,8 +99,6 @@ export default function DayQuizScreen() {
   };
 
   const handleAnswerSelect = (choice: string) => {
-    if (selectedAnswer !== null) return; // 이미 선택한 경우 무시
-
     setSelectedAnswer(choice);
     const newUserAnswers = [...userAnswers];
     newUserAnswers[currentQuestionIndex] = choice;
@@ -219,8 +217,7 @@ export default function DayQuizScreen() {
                     borderWidth: isSelected ? 2 : 1,
                   },
                 ]}
-                onPress={() => handleAnswerSelect(choice)}
-                disabled={isAnswered}>
+                onPress={() => handleAnswerSelect(choice)}>
                 <Text style={[styles.choiceLabel, { color: colors.textSecondary }]}>
                   {choiceLabel}.
                 </Text>

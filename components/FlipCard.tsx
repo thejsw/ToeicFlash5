@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
 import Animated, {
   useSharedValue,
@@ -25,6 +25,8 @@ export default function FlipCard({ word, onFlip, flipSignal, isActive }: FlipCar
   const { colors } = useTheme();
   const [isFlipped, setIsFlipped] = useState(false);
   const rotation = useSharedValue(0);
+  const prevFlipSignalRef = useRef<number | undefined>(undefined);
+  const isFirstMount = useRef(true);
 
   const handleFlip = () => {
     rotation.value = withTiming(isFlipped ? 0 : 180, { duration: 300 });
@@ -37,9 +39,20 @@ export default function FlipCard({ word, onFlip, flipSignal, isActive }: FlipCar
   useEffect(() => {
     if (flipSignal === undefined) return;
     if (!isActive) return;
-    handleFlip();
-    // flipSignal이 바뀔 때만 반응 (isActive 변경만으로는 재실행 안 함)
-  }, [flipSignal]);
+    
+    // 첫 마운트 시에는 flip하지 않음
+    if (isFirstMount.current) {
+      isFirstMount.current = false;
+      prevFlipSignalRef.current = flipSignal;
+      return;
+    }
+    
+    // flipSignal이 실제로 변경되었을 때만 flip
+    if (prevFlipSignalRef.current !== flipSignal) {
+      prevFlipSignalRef.current = flipSignal;
+      handleFlip();
+    }
+  }, [flipSignal, isActive]);
 
   const frontAnimatedStyle = useAnimatedStyle(() => {
     const rotateValue = interpolate(rotation.value, [0, 180], [0, 180]);

@@ -4,6 +4,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useTheme } from '@/lib/theme';
 import { ChevronLeft, CheckCircle, XCircle } from 'lucide-react-native';
 import { QuizQuestion, QuizResult } from '@/types/quiz';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function DayQuizResultScreen() {
   const router = useRouter();
@@ -22,7 +23,7 @@ export default function DayQuizResultScreen() {
     calculateResults();
   }, []);
 
-  const calculateResults = () => {
+  const calculateResults = async () => {
     try {
       const questions: QuizQuestion[] = JSON.parse(questionsParam || '[]');
       const userAnswers: string[] = JSON.parse(userAnswersParam || '[]');
@@ -43,6 +44,13 @@ export default function DayQuizResultScreen() {
       const correctCount = calculatedResults.filter((r) => r.isCorrect).length;
       setResults(calculatedResults);
       setScore(correctCount);
+      
+      // 퀴즈 완료 상태 저장
+      try {
+        await AsyncStorage.setItem(`quiz_completed_day_${day}`, 'true');
+      } catch (error) {
+        console.error('Error saving quiz completion:', error);
+      }
     } catch (error) {
       console.error('Error calculating results:', error);
     }
