@@ -39,25 +39,20 @@ export default function DayQuizScreen() {
       const dayNum = parseInt(day || '1');
       const storageKey = `quiz_generated_day_${dayNum}`;
 
-      // Day당 퀴즈 생성 1회 제한: 이미 생성된 퀴즈가 있는지 확인
       const cachedQuiz = await AsyncStorage.getItem(storageKey);
       if (cachedQuiz) {
         try {
           const parsedQuestions = JSON.parse(cachedQuiz) as QuizQuestion[];
           if (Array.isArray(parsedQuestions) && parsedQuestions.length > 0) {
-            console.log(`Day ${dayNum} 퀴즈를 캐시에서 불러옵니다.`);
             setQuestions(parsedQuestions);
             setUserAnswers(new Array(parsedQuestions.length).fill(''));
             return;
           }
         } catch (parseError) {
-          console.warn('캐시된 퀴즈 파싱 실패, 새로 생성합니다.', parseError);
-          // 파싱 실패 시 캐시 삭제
           await AsyncStorage.removeItem(storageKey);
         }
       }
 
-      // Day의 단어 목록 가져오기
       const { data: wordsData, error: wordsError } = await supabase
         .from('vocabulary_words')
         .select('word')
@@ -72,14 +67,12 @@ export default function DayQuizScreen() {
         throw new Error('단어를 찾을 수 없습니다.');
       }
 
-      // LLM으로 퀴즈 생성 (재시도 로직 포함)
       const quizQuestions = await generateQuizQuestionsWithRetry(
         dayNum,
         wordList,
-        1 // 최대 1회 재시도
+        1
       );
 
-      // 생성 성공 시 AsyncStorage에 저장
       await AsyncStorage.setItem(storageKey, JSON.stringify(quizQuestions));
 
       setQuestions(quizQuestions);
