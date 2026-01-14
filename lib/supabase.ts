@@ -29,9 +29,10 @@ export type VocabularyWord = {
   day: number;
   word: string;
   meaning: string;
-  example: string;
+  example_en: string;
+  example_ko: string;
+  example_highlight: string;
   order_index: number;
-  created_at: string;
 };
 
 export type UserProgress = {
