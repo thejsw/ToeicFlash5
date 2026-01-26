@@ -6,14 +6,14 @@ import Animated, {
   withTiming,
   interpolate,
 } from 'react-native-reanimated';
-import { VocabularyWord } from '@/lib/supabase';
+import { words } from '@/lib/supabase';
 import { useTheme } from '@/lib/theme';
 
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = width - 40;
 
 type FlipCardProps = {
-  word: VocabularyWord;
+  word: words;
   onFlip?: (isFlipped: boolean) => void;
   /** 외부에서 플립을 트리거하기 위한 신호 값 (변할 때마다 한 번 뒤집힘) */
   flipSignal?: number;
@@ -27,6 +27,7 @@ export default function FlipCard({ word, onFlip, flipSignal, isActive }: FlipCar
   const rotation = useSharedValue(0);
   const prevFlipSignalRef = useRef<number | undefined>(undefined);
   const isFirstMount = useRef(true);
+  const word_content = word.word_contents;
 
   const handleFlip = () => {
     rotation.value = withTiming(isFlipped ? 0 : 180, { duration: 300 });
@@ -110,14 +111,14 @@ export default function FlipCard({ word, onFlip, flipSignal, isActive }: FlipCar
           Korean
         </Text>
         <Text style={[styles.meaning, { color: colors.primary }]}>
-          {word.meaning}
+          {word_content.meaning}
         </Text>
         <View style={[styles.divider, { backgroundColor: colors.divider }]} />
         <Text style={[styles.exampleLabel, { color: colors.textSecondary }]}>
           Example
         </Text>
-        <Text style={[styles.example, { color: colors.text }]}>
-          {word.example}
+        <Text style={[styles.example_en, { color: colors.text }]}>
+          {word.example_en}
         </Text>
       </Animated.View>
     </TouchableOpacity>
@@ -186,7 +187,7 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
     marginBottom: 12,
   },
-  example: {
+  example_en: {
     fontSize: 16,
     textAlign: 'center',
     lineHeight: 24,

@@ -24,14 +24,21 @@ if (!supabaseUrl || !supabaseAnonKey) {
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-export type VocabularyWord = {
+export type words = {
   id: string;
   day: number;
   word: string;
-  meaning: string;
   example_en: string;
-  example_ko: string;
-  example_highlight: string;
+  order_index: number;
+  word_contents: word_contents[];
+};
+
+export type word_contents = {
+  id: string;
+  word_id: string;
+  language: string;
+  meaning: string;
+  example_local: string;
   order_index: number;
 };
 

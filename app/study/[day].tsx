@@ -10,7 +10,7 @@ import {
   Platform,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { supabase, VocabularyWord } from '@/lib/supabase';
+import { supabase, words } from '@/lib/supabase';
 import FlipCard from '@/components/FlipCard';
 import AdBanner from '@/components/AdBanner';
 import { ChevronLeft, ChevronRight, Star, Moon, Sun } from 'lucide-react-native';
@@ -25,7 +25,7 @@ export default function StudyScreen() {
   const { colors, theme, toggleTheme } = useTheme();
   const flatListRef = useRef<FlatList>(null);
 
-  const [words, setWords] = useState<VocabularyWord[]>([]);
+  const [words, setWords] = useState<words[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [bookmarkedIds, setBookmarkedIds] = useState<Set<string>>(new Set());
@@ -76,8 +76,8 @@ export default function StudyScreen() {
   const loadWords = async () => {
     try {
       const { data, error } = await supabase
-        .from('vocabulary_words')
-        .select('*')
+        .from('words')
+        .select('id, day, word, example_en, order_index, word_contents(id, word_id, language, meaning, example_local, order_index)')
         .eq('day', parseInt(day))
         .order('order_index');
 
@@ -293,6 +293,7 @@ export default function StudyScreen() {
         renderItem={({ item, index }) => (
           <FlipCard
             word={item}
+            word_content={item}
             isActive={index === currentIndex}
             flipSignal={flipSignal}
           />
