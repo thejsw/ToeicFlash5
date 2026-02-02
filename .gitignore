@@ -1,6 +1,9 @@
 # dependencies
 node_modules/
 
+#bolt
+.bolt/
+
 # expo
 .expo/
 dist/
