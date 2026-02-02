@@ -117,7 +117,7 @@ export default function FlipCard({ word, onFlip, flipSignal, isActive }: FlipCar
           Example
         </Text>
         <Text style={[styles.example, { color: colors.text }]}>
-          {word.example}
+          {word.example_local}
         </Text>
       </Animated.View>
     </TouchableOpacity>

@@ -19,7 +19,7 @@ export default function HomeScreen() {
   const loadWordCounts = async () => {
     try {
       const { data, error } = await supabase
-        .from('vocabulary_words')
+        .from('words')
         .select('day');
 
       if (error) throw error;

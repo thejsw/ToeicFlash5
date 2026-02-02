@@ -54,7 +54,7 @@ export default function DayQuizScreen() {
       }
 
       const { data: wordsData, error: wordsError } = await supabase
-        .from('vocabulary_words')
+        .from('words')
         .select('word')
         .eq('day', dayNum)
         .order('order_index');
