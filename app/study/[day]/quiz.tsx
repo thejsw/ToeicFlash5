@@ -10,10 +10,8 @@ import {
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useTheme } from '@/lib/theme';
 import { ChevronLeft } from 'lucide-react-native';
-import { generateQuizQuestionsWithRetry } from '@/lib/llm';
 import { QuizQuestion } from '@/types/quiz';
-import { supabase } from '@/lib/supabase';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { fetchQuizByDay } from '@/lib/supabase';
 
 export default function DayQuizScreen() {
   const router = useRouter();
@@ -37,55 +35,26 @@ export default function DayQuizScreen() {
       setError(null);
 
       const dayNum = parseInt(day || '1');
-      const storageKey = `quiz_generated_day_${dayNum}`;
+      const dayQuiz = await fetchQuizByDay(dayNum);
 
-      const cachedQuiz = await AsyncStorage.getItem(storageKey);
-      if (cachedQuiz) {
-        try {
-          const parsedQuestions = JSON.parse(cachedQuiz) as QuizQuestion[];
-          if (Array.isArray(parsedQuestions) && parsedQuestions.length > 0) {
-            setQuestions(parsedQuestions);
-            setUserAnswers(new Array(parsedQuestions.length).fill(''));
-            return;
-          }
-        } catch (parseError) {
-          await AsyncStorage.removeItem(storageKey);
-        }
+      const quizQuestions: QuizQuestion[] = dayQuiz.map((q) => ({
+        question: q.question_text,
+        choices: q.choices.map((c) => c.choice_text),
+        answer: q.answer,
+        explanation: q.explanation,
+      }));
+
+      if (quizQuestions.length === 0) {
+        throw new Error('해당 Day의 퀴즈가 없습니다.');
       }
-
-      const { data: wordsData, error: wordsError } = await supabase
-        .from('words')
-        .select('word')
-        .eq('day', dayNum)
-        .order('order_index');
-
-      if (wordsError) throw wordsError;
-
-      const wordList = wordsData?.map((w) => w.word) || [];
-      
-      if (wordList.length === 0) {
-        throw new Error('단어를 찾을 수 없습니다.');
-      }
-
-      const quizQuestions = await generateQuizQuestionsWithRetry(
-        dayNum,
-        wordList,
-        1
-      );
-
-      await AsyncStorage.setItem(storageKey, JSON.stringify(quizQuestions));
 
       setQuestions(quizQuestions);
       setUserAnswers(new Array(quizQuestions.length).fill(''));
     } catch (err: any) {
       console.error('Error loading quiz:', err);
       const errorMessage = err.message || '퀴즈를 불러오는 중 오류가 발생했습니다.';
-      setError(errorMessage.includes('재시도') || err.message?.includes('Retrying') 
-        ? '문제 생성에 실패했어요. 잠시 후 다시 시도해주세요.' 
-        : errorMessage);
-      Alert.alert('오류', errorMessage.includes('재시도') || err.message?.includes('Retrying')
-        ? '문제 생성에 실패했어요. 잠시 후 다시 시도해주세요.'
-        : errorMessage);
+      setError(errorMessage);
+      Alert.alert('오류', errorMessage);
     } finally {
       setLoading(false);
     }
@@ -136,7 +105,7 @@ export default function DayQuizScreen() {
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={colors.primary} />
           <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
-            문제를 생성하는 중...
+            문제를 불러오는 중...
           </Text>
         </View>
       </View>

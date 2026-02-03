@@ -44,6 +44,7 @@
 - question_id: uuid (FK → quiz_questions.id) — 문항 참조
 - choice_key: text — 선택 키
 - choice_text: text — 보기 내용
+- is_correct: bool - 정답, 오답 구분
 
 ---
 

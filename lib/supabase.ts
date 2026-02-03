@@ -138,3 +138,124 @@ export async function fetchWordsWithContents(
     };
   });
 }
+
+type QuizChoiceRow = {
+  id: string;
+  question_id: string;
+  choice_key: string | null;
+  choice_text: string | null;
+  is_correct: boolean | null;
+};
+type QuizQuestionRow = { id: string; word_id: string; quiz_id: string; question_text: string | null; order_index: number };
+type QuizExplanationRow = { question_id: string; explanation: string | null; language: string | null };
+
+export type DayQuizQuestion = {
+  id: string;
+  question_text: string;
+  choices: { choice_key: string; choice_text: string }[];
+  answer: string;
+  explanation: string;
+};
+
+export async function fetchQuizByDay(dayNum: number): Promise<DayQuizQuestion[]> {
+  const { data: quizData, error: quizError } = await supabase
+    .from('quizzes')
+    .select('id')
+    .eq('day_num', dayNum)
+    .limit(1)
+    .maybeSingle();
+
+  if (quizError) throw quizError;
+  if (!quizData?.id) return [];
+
+  const quizId = quizData.id;
+
+  const { data: questionsData, error: questionsError } = await supabase
+    .from('quiz_questions')
+    .select('id, word_id, quiz_id, question_text, order_index')
+    .eq('quiz_id', quizId)
+    .order('order_index');
+
+  if (questionsError) throw questionsError;
+  const questions = (questionsData ?? []) as QuizQuestionRow[];
+  if (questions.length === 0) return [];
+
+  const questionIds = questions.map((q) => q.id);
+  const { data: choicesData, error: choicesError } = await supabase
+    .from('quiz_choices')
+    .select('id, question_id, choice_key, choice_text, is_correct')
+    .in('question_id', questionIds);
+
+  if (choicesError) throw choicesError;
+  const choices = (choicesData ?? []) as QuizChoiceRow[];
+
+  const { data: explanationsData, error: explanationsError } = await supabase
+    .from('quiz_explanations')
+    .select('question_id, explanation, language')
+    .in('question_id', questionIds);
+
+  if (explanationsError) throw explanationsError;
+  const explanations = (explanationsData ?? []) as QuizExplanationRow[];
+
+  const choicesByQuestion = new Map<string, QuizChoiceRow[]>();
+  for (const c of choices) {
+    if (!c.question_id) continue;
+    const list = choicesByQuestion.get(c.question_id) ?? [];
+    list.push(c);
+    choicesByQuestion.set(c.question_id, list);
+  }
+
+  const explanationByQuestion = new Map<string, string>();
+  const explanationLangByQuestion = new Map<string, boolean>();
+  for (const e of explanations) {
+    if (!e.question_id) continue;
+    const isKo = (e.language ?? '').toLowerCase().startsWith('ko');
+    const existingIsKo = explanationLangByQuestion.get(e.question_id);
+    if (existingIsKo === undefined || (isKo && !existingIsKo)) {
+      explanationByQuestion.set(e.question_id, e.explanation ?? '');
+      explanationLangByQuestion.set(e.question_id, isKo);
+    }
+  }
+
+  function fixTextEncoding(str: string): string {
+    return str
+      .replace(/\uFFFD/g, "'")
+      .replace(/â€™|Ã¢â‚¬â„¢|Ã¢â‚¬™|â€˜/g, "'")
+      .replace(/â€œ|â€|â€\u009d/g, '"');
+  }
+
+  const orderKeys = ['A', 'B', 'C', 'D', 'a', 'b', 'c', 'd'];
+
+  return questions.map((q) => {
+    const rawChoices = choicesByQuestion.get(q.id) ?? [];
+    const choiceList = rawChoices
+      .map((c) => ({
+        choice_key: c.choice_key ?? '',
+        choice_text: fixTextEncoding((c.choice_text ?? '').trim()),
+        is_correct: c.is_correct === true,
+      }))
+      .filter((c) => c.choice_text);
+
+    const sorted = [...choiceList].sort((a, b) => {
+      const ai = orderKeys.indexOf(a.choice_key);
+      const bi = orderKeys.indexOf(b.choice_key);
+      if (ai >= 0 && bi >= 0) return ai - bi;
+      if (ai >= 0) return -1;
+      if (bi >= 0) return 1;
+      return a.choice_key.localeCompare(b.choice_key);
+    });
+
+    const correctChoice = sorted.find((c) => c.is_correct);
+    const answer = correctChoice?.choice_text ?? (sorted[0]?.choice_text ?? '');
+
+    const explanation = fixTextEncoding(explanationByQuestion.get(q.id) ?? '');
+
+    return {
+      id: q.id,
+      question_text: fixTextEncoding((q.question_text ?? '').trim()),
+      choices: sorted.map((c) => ({ choice_key: c.choice_key, choice_text: c.choice_text })),
+      answer,
+      explanation,
+    };
+  });
+}
