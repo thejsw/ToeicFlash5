@@ -5,7 +5,7 @@ import {
   StyleSheet,
   FlatList,
   TouchableOpacity,
-  Dimensions,
+  useWindowDimensions,
   ActivityIndicator,
   Platform,
 } from 'react-native';
@@ -16,9 +16,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ChevronLeft, ChevronRight, BookmarkX, Star, Moon, Sun } from 'lucide-react-native';
 import { useTheme } from '@/lib/theme';
 
-const { width } = Dimensions.get('window');
-
 export default function BookmarksScreen() {
+  const { width } = useWindowDimensions();
   const { colors, theme, toggleTheme } = useTheme();
   const flatListRef = useRef<FlatList>(null);
   const [words, setWords] = useState<VocabularyWord[]>([]);
@@ -155,7 +154,7 @@ export default function BookmarksScreen() {
   }).current;
 
   const viewabilityConfig = useRef({
-    itemVisiblePercentThreshold: 50,
+    itemVisiblePercentThreshold: 80,
   }).current;
 
   if (loading) {
@@ -227,22 +226,31 @@ export default function BookmarksScreen() {
         </TouchableOpacity>
       </View>
 
-      <FlatList
-        ref={flatListRef}
-        data={words}
-        horizontal
-        pagingEnabled
-        showsHorizontalScrollIndicator={false}
-        onViewableItemsChanged={onViewableItemsChanged}
-        viewabilityConfig={viewabilityConfig}
-        renderItem={({ item }) => <FlipCard word={item} />}
-        keyExtractor={(item) => item.id}
-        getItemLayout={(data, index) => ({
-          length: width,
-          offset: width * index,
-          index,
-        })}
-      />
+      <View style={styles.listWrapper}>
+        <FlatList
+          ref={flatListRef}
+          data={words}
+          horizontal
+          pagingEnabled
+          showsHorizontalScrollIndicator={false}
+          snapToInterval={width}
+          snapToAlignment="center"
+          decelerationRate="fast"
+          onViewableItemsChanged={onViewableItemsChanged}
+          viewabilityConfig={viewabilityConfig}
+          renderItem={({ item }) => (
+            <View style={[styles.cardPage, { width }]}>
+              <FlipCard word={item} />
+            </View>
+          )}
+          keyExtractor={(item) => item.id}
+          getItemLayout={(data, index) => ({
+            length: width,
+            offset: width * index,
+            index,
+          })}
+        />
+      </View>
 
       <View style={[styles.navigation, { backgroundColor: colors.surface, borderTopColor: colors.border }]}>
         <TouchableOpacity
@@ -359,6 +367,13 @@ const styles = StyleSheet.create({
   progressFill: {
     height: '100%',
     borderRadius: 4,
+  },
+  listWrapper: {
+    flex: 1,
+  },
+  cardPage: {
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   navigation: {
     flexDirection: 'row',

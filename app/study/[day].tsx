@@ -5,7 +5,7 @@ import {
   StyleSheet,
   TouchableOpacity,
   FlatList,
-  Dimensions,
+  useWindowDimensions,
   ActivityIndicator,
   Platform,
 } from 'react-native';
@@ -17,9 +17,8 @@ import { ChevronLeft, ChevronRight, Star, Moon, Sun } from 'lucide-react-native'
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '@/lib/theme';
 
-const { width } = Dimensions.get('window');
-
 export default function StudyScreen() {
+  const { width } = useWindowDimensions();
   const { day } = useLocalSearchParams<{ day: string }>();
   const router = useRouter();
   const { colors, theme, toggleTheme } = useTheme();
@@ -222,7 +221,7 @@ export default function StudyScreen() {
   }).current;
 
   const viewabilityConfig = useRef({
-    itemVisiblePercentThreshold: 50,
+    itemVisiblePercentThreshold: 80,
   }).current;
 
   if (loading) {
@@ -291,6 +290,9 @@ export default function StudyScreen() {
         horizontal
         pagingEnabled
         showsHorizontalScrollIndicator={false}
+        snapToInterval={width}
+        snapToAlignment="center"
+        decelerationRate="fast"
         onViewableItemsChanged={onViewableItemsChanged}
         viewabilityConfig={viewabilityConfig}
         onContentSizeChange={() => {
@@ -302,11 +304,13 @@ export default function StudyScreen() {
           }
         }}
         renderItem={({ item, index }) => (
-          <FlipCard
-            word={item}
-            isActive={index === currentIndex}
-            flipSignal={flipSignal}
-          />
+          <View style={[styles.cardPage, { width }]}>
+            <FlipCard
+              word={item}
+              isActive={index === currentIndex}
+              flipSignal={flipSignal}
+            />
+          </View>
         )}
         keyExtractor={(item) => item.id}
         getItemLayout={(data, index) => ({
@@ -431,6 +435,10 @@ const styles = StyleSheet.create({
   progressFill: {
     height: '100%',
     borderRadius: 4,
+  },
+  cardPage: {
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   navigation: {
     flexDirection: 'row',

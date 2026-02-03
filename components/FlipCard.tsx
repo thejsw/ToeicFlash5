@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, useWindowDimensions } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -9,8 +9,9 @@ import Animated, {
 import { VocabularyWord } from '@/lib/supabase';
 import { useTheme } from '@/lib/theme';
 
-const { width } = Dimensions.get('window');
-const CARD_WIDTH = width - 40;
+const MAX_CARD_WIDTH = 420;
+/** 이 값 미만이면 모바일로 간주하고 MAX_CARD_WIDTH 적용 */
+const MOBILE_BREAKPOINT = 768;
 
 type FlipCardProps = {
   word: VocabularyWord;
@@ -21,7 +22,21 @@ type FlipCardProps = {
   isActive?: boolean;
 };
 
+/** 헤더·프로그레스·네비·광고·마진 제외한 카드 높이용 여백 */
+const CARD_VERTICAL_PADDING = 360;
+const MIN_CARD_HEIGHT = 280;
+const MAX_CARD_HEIGHT = 560;
+/** 카드 상하 마진(하단 네비와 겹치지 않도록) */
+const CARD_MARGIN_VERTICAL = 10;
+
 export default function FlipCard({ word, onFlip, flipSignal, isActive }: FlipCardProps) {
+  const { width, height } = useWindowDimensions();
+  const isMobile = width < MOBILE_BREAKPOINT;
+  const cardWidth = isMobile ? Math.min(width - 40, MAX_CARD_WIDTH) : width - 40;
+  const cardHeight = Math.max(
+    MIN_CARD_HEIGHT,
+    Math.min(MAX_CARD_HEIGHT, height - CARD_VERTICAL_PADDING)
+  );
   const { colors } = useTheme();
   const [isFlipped, setIsFlipped] = useState(false);
   const rotation = useSharedValue(0);
@@ -72,7 +87,14 @@ export default function FlipCard({ word, onFlip, flipSignal, isActive }: FlipCar
 
   return (
     <TouchableOpacity
-      style={styles.container}
+      style={[
+        styles.container,
+        {
+          width: cardWidth,
+          height: cardHeight,
+          marginVertical: CARD_MARGIN_VERTICAL,
+        },
+      ]}
       onPress={handleFlip}
       activeOpacity={0.9}>
       <Animated.View
@@ -133,10 +155,8 @@ export default function FlipCard({ word, onFlip, flipSignal, isActive }: FlipCar
 
 const styles = StyleSheet.create({
   container: {
-    width: CARD_WIDTH,
-    height: 450,
     marginHorizontal: 20,
-  },
+  } as const,
   card: {
     position: 'absolute',
     width: '100%',
