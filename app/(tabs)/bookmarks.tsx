@@ -9,7 +9,7 @@ import {
   ActivityIndicator,
   Platform,
 } from 'react-native';
-import { supabase, VocabularyWord, WordRow, mergeWordWithContent } from '@/lib/supabase';
+import { supabase, VocabularyWord, fetchWordsWithContents } from '@/lib/supabase';
 import FlipCard from '@/components/FlipCard';
 import AdBanner from '@/components/AdBanner';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -69,20 +69,14 @@ export default function BookmarksScreen() {
 
       setBookmarkedIds(new Set(bookmarkIds));
 
-      const { data, error } = await supabase
-        .from('words')
-        .select('id, day, word, example_en, order_index, word_contents(meaning, example_local, language)')
-        .in('id', bookmarkIds);
-
-      if (error) throw error;
-
-      const orderedWords = bookmarkIds
-        .map((id: string) => {
-          const row = (data as WordRow[])?.find((w: WordRow) => w.id === id);
-          return row ? mergeWordWithContent(row) : null;
-        })
-        .filter((w: VocabularyWord | null): w is VocabularyWord => w !== null);
-
+      const wordsList = await fetchWordsWithContents(bookmarkIds);
+      const orderMap = new Map<string, number>(
+        bookmarkIds.map((id: string, i: number) => [id, i])
+      );
+      const orderedWords = wordsList.sort(
+        (a, b) =>
+          (orderMap.get(a.id) ?? 999) - (orderMap.get(b.id) ?? 999)
+      );
       setWords(orderedWords);
     } catch (error) {
       console.error('Error loading bookmarked words:', error);

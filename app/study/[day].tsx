@@ -10,7 +10,7 @@ import {
   Platform,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { supabase, VocabularyWord, WordRow, mergeWordWithContent } from '@/lib/supabase';
+import { VocabularyWord, fetchWordsWithContents } from '@/lib/supabase';
 import FlipCard from '@/components/FlipCard';
 import AdBanner from '@/components/AdBanner';
 import { ChevronLeft, ChevronRight, Star, Moon, Sun } from 'lucide-react-native';
@@ -24,6 +24,7 @@ export default function StudyScreen() {
   const router = useRouter();
   const { colors, theme, toggleTheme } = useTheme();
   const flatListRef = useRef<FlatList>(null);
+  const pendingScrollIndexRef = useRef<number | null>(null);
 
   const [words, setWords] = useState<VocabularyWord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -75,26 +76,17 @@ export default function StudyScreen() {
 
   const loadWords = async () => {
     try {
-      const { data, error } = await supabase
-        .from('words')
-        .select('id, day, word, example_en, order_index, word_contents(meaning, example_local, language)')
-        .eq('day', parseInt(day))
-        .order('order_index');
-
-      if (error) throw error;
-
-      const merged = (data || [])
-        .map((row) => mergeWordWithContent(row as WordRow))
-        .filter((w): w is VocabularyWord => w !== null);
+      const merged = await fetchWordsWithContents({ day: parseInt(day) });
       setWords(merged);
 
       const savedIndex = await AsyncStorage.getItem(`progress_day_${day}`);
-      if (savedIndex) {
-        const index = parseInt(savedIndex);
+      if (savedIndex && merged.length > 0) {
+        const index = Math.min(
+          Math.max(0, parseInt(savedIndex, 10)),
+          merged.length - 1
+        );
         setCurrentIndex(index);
-        setTimeout(() => {
-          flatListRef.current?.scrollToIndex({ index, animated: false });
-        }, 100);
+        pendingScrollIndexRef.current = index;
       }
     } catch (error) {
       console.error('Error loading words:', error);
@@ -162,19 +154,25 @@ export default function StudyScreen() {
   };
 
   const handlePrevious = (animated: boolean = true) => {
+    if (words.length === 0) return;
     setCurrentIndex((prev) => {
       if (prev <= 0) return prev;
       const newIndex = prev - 1;
-      flatListRef.current?.scrollToIndex({ index: newIndex, animated });
+      if (words.length > 0) {
+        flatListRef.current?.scrollToIndex({ index: newIndex, animated });
+      }
       return newIndex;
     });
   };
 
   const handleNext = (animated: boolean = true) => {
+    if (words.length === 0) return;
     setCurrentIndex((prev) => {
       if (prev >= words.length - 1) return prev;
       const newIndex = prev + 1;
-      flatListRef.current?.scrollToIndex({ index: newIndex, animated });
+      if (words.length > 0) {
+        flatListRef.current?.scrollToIndex({ index: newIndex, animated });
+      }
       return newIndex;
     });
   };
@@ -212,7 +210,9 @@ export default function StudyScreen() {
     if (!Number.isFinite(clampedIndex)) return;
 
     setCurrentIndex(clampedIndex);
-    flatListRef.current?.scrollToIndex({ index: clampedIndex, animated: false });
+    if (words.length > 0) {
+      flatListRef.current?.scrollToIndex({ index: clampedIndex, animated: false });
+    }
   };
 
   const onViewableItemsChanged = useRef(({ viewableItems }: any) => {
@@ -293,6 +293,14 @@ export default function StudyScreen() {
         showsHorizontalScrollIndicator={false}
         onViewableItemsChanged={onViewableItemsChanged}
         viewabilityConfig={viewabilityConfig}
+        onContentSizeChange={() => {
+          const pending = pendingScrollIndexRef.current;
+          if (words.length > 0 && pending !== null && flatListRef.current) {
+            const index = Math.min(pending, words.length - 1);
+            pendingScrollIndexRef.current = null;
+            flatListRef.current.scrollToIndex({ index, animated: false });
+          }
+        }}
         renderItem={({ item, index }) => (
           <FlipCard
             word={item}

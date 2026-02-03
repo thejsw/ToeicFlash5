@@ -105,19 +105,26 @@ export default function FlipCard({ word, onFlip, flipSignal, isActive }: FlipCar
             borderColor: colors.border,
             shadowColor: colors.text,
           },
-        ]}>
+        ]}
+        collapsable={false}>
         <Text style={[styles.label, { color: colors.textSecondary }]}>
-          Korean
+          뜻
         </Text>
         <Text style={[styles.meaning, { color: colors.primary }]}>
-          {word.meaning}
+          {word.meaning || ' '}
         </Text>
         <View style={[styles.divider, { backgroundColor: colors.divider }]} />
         <Text style={[styles.exampleLabel, { color: colors.textSecondary }]}>
-          Example
+          예문 (영어)
         </Text>
         <Text style={[styles.example, { color: colors.text }]}>
-          {word.example_local}
+          {word.example_en || ' '}
+        </Text>
+        <Text style={[styles.exampleLabel, { color: colors.textSecondary }]}>
+          예문 (한국어)
+        </Text>
+        <Text style={[styles.example, { color: colors.text }]}>
+          {word.example_local || ' '}
         </Text>
       </Animated.View>
     </TouchableOpacity>

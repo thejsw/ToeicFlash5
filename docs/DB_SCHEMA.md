@@ -14,7 +14,6 @@
 ### word_contents — 단어 부가 정보
 - id: uuid (PK) — 콘텐츠 ID
 - word_id: uuid (FK → words.id) — 단어 참조
-- day: int4 — 학습 Day
 - language: text — 언어 코드
 - meaning: text — 의미
 - example_local: text — 번역 예문

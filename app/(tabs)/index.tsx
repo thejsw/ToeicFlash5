@@ -120,7 +120,7 @@ export default function HomeScreen() {
           { paddingBottom: 24 },
         ]}>
         <View style={styles.grid}>
-          {Array.from({ length: 20 }, (_, i) => i + 1).map((day) => {
+          {Array.from({ length: 10 }, (_, i) => i + 1).map((day) => {
             const totalWords = wordCounts[day] || 0;
             const currentProgress = progressData[day] || 0;
             const progressPercent = totalWords > 0 ? (currentProgress / totalWords) * 100 : 0;

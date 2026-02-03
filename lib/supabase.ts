@@ -24,14 +24,18 @@ if (!supabaseUrl || !supabaseAnonKey) {
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-/** words + word_contents(ko) 병합 결과 */
+// ---------------------------------------------------------------------------
+// Types (docs/DB_SCHEMA.md 기준)
+// ---------------------------------------------------------------------------
+
+/** words + word_contents 병합 결과 — 플래시카드/북마크 표시용 */
 export type VocabularyWord = {
   id: string;
   day: number;
   word: string;
-  example_en: string;
   order_index: number;
   meaning: string;
+  example_en: string;
   example_local: string;
 };
 
@@ -51,35 +55,86 @@ export type Bookmark = {
   created_at: string;
 };
 
-/** words + word_contents join 조회용 Row */
-export type WordContentRow = {
-  meaning: string;
-  example_local: string;
-  language: string;
-};
-export type WordRow = {
+// words / word_contents 단일 테이블 응답
+type WordRow = {
   id: string;
   day: number;
   word: string;
-  example_en: string;
+  example_en: string | null;
   order_index: number;
-  word_contents: WordContentRow[] | null;
+};
+type WordContentRow = {
+  word_id: string;
+  meaning: string | null;
+  example_local?: string | null;
+  exampleLocal?: string | null;
+  language?: string | null;
 };
 
-export function mergeWordWithContent(
-  row: WordRow,
-  lang = 'ko'
-): VocabularyWord | null {
-  const contents = row.word_contents ?? [];
-  const content = contents.find((c) => c.language === lang) ?? contents[0];
-  if (!content) return null;
-  return {
-    id: row.id,
-    day: row.day,
-    word: row.word,
-    example_en: row.example_en ?? '',
-    order_index: row.order_index,
-    meaning: content.meaning ?? '',
-    example_local: content.example_local ?? '',
-  };
+/**
+ * words와 word_contents를 각각 조회한 뒤 클라이언트에서 병합.
+ * (Supabase 중첩 select가 null을 주는 경우 대비 — relation/FK 설정 없어도 동작)
+ */
+export async function fetchWordsWithContents(
+  wordIds: string[] | { day: number }
+): Promise<VocabularyWord[]> {
+  const isByDay = typeof wordIds === 'object' && 'day' in wordIds;
+
+  const wordsQuery = isByDay
+    ? supabase
+        .from('words')
+        .select('id, day, word, example_en, order_index')
+        .eq('day', wordIds.day)
+        .order('order_index')
+    : supabase
+        .from('words')
+        .select('id, day, word, example_en, order_index')
+        .in('id', wordIds);
+
+  const { data: wordsData, error: wordsError } = await wordsQuery;
+  if (wordsError) throw wordsError;
+
+  const words = (wordsData ?? []) as WordRow[];
+  if (words.length === 0) return [];
+
+  const ids = words.map((w) => w.id);
+  const { data: contentsData, error: contentsError } = await supabase
+    .from('word_contents')
+    .select('word_id, meaning, example_local, language')
+    .in('word_id', ids);
+
+  if (contentsError) throw contentsError;
+  const contents = (contentsData ?? []) as WordContentRow[];
+
+  const byWordId = new Map<string, WordContentRow>();
+  for (const c of contents) {
+    if (c.word_id == null || c.word_id === '') continue;
+    const existing = byWordId.get(c.word_id);
+    const isKo = (c.language ?? '').toLowerCase().startsWith('ko');
+    const existingIsKo = existing ? (existing.language ?? '').toLowerCase().startsWith('ko') : false;
+    if (!existing || (isKo && !existingIsKo)) {
+      byWordId.set(c.word_id, c);
+    }
+  }
+
+  function getExampleLocalOnly(c: WordContentRow | undefined): string {
+    if (!c) return '';
+    const value = (c.example_local ?? (c as { exampleLocal?: string }).exampleLocal ?? '').trim();
+    return value;
+  }
+
+  return words.map((w) => {
+    const c = byWordId.get(w.id);
+    const exampleEn = w.example_en ?? '';
+    const exampleLocal = getExampleLocalOnly(c);
+    return {
+      id: w.id,
+      day: w.day,
+      word: w.word,
+      order_index: w.order_index,
+      meaning: c?.meaning ?? '',
+      example_en: exampleEn,
+      example_local: exampleLocal,
+    };
+  });
 }
