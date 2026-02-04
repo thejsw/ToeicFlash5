@@ -1,6 +1,35 @@
 import { createClient } from '@supabase/supabase-js';
 import Constants from 'expo-constants';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import 'react-native-url-polyfill/auto';
+
+const GUEST_FOLDERS_KEY = 'bookmark_guest_folders';
+const GUEST_BOOKMARKS_KEY = 'bookmark_guest_bookmarks';
+
+type GuestFolder = { id: string; name: string; order_index: number };
+type GuestBookmark = { id: string; word_id: string; folder_id: string };
+
+function genId(): string {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2);
+}
+
+async function getGuestFolders(): Promise<GuestFolder[]> {
+  const raw = await AsyncStorage.getItem(GUEST_FOLDERS_KEY);
+  return raw ? JSON.parse(raw) : [];
+}
+
+async function setGuestFolders(folders: GuestFolder[]): Promise<void> {
+  await AsyncStorage.setItem(GUEST_FOLDERS_KEY, JSON.stringify(folders));
+}
+
+async function getGuestBookmarks(): Promise<GuestBookmark[]> {
+  const raw = await AsyncStorage.getItem(GUEST_BOOKMARKS_KEY);
+  return raw ? JSON.parse(raw) : [];
+}
+
+async function setGuestBookmarks(bookmarks: GuestBookmark[]): Promise<void> {
+  await AsyncStorage.setItem(GUEST_BOOKMARKS_KEY, JSON.stringify(bookmarks));
+}
 
 type SupabaseExtras = {
   supabaseUrl?: string;
@@ -54,6 +83,16 @@ export type Bookmark = {
   folder_id: string | null;
   created_at: string;
 };
+
+export type BookmarkFolder = {
+  id: string;
+  user_id: string;
+  name: string;
+  order_index: number;
+  created_at: string;
+};
+
+export const DEFAULT_FOLDER_NAME = '기본';
 
 // words / word_contents 단일 테이블 응답
 type WordRow = {
@@ -258,4 +297,391 @@ export async function fetchQuizByDay(dayNum: number): Promise<DayQuizQuestion[]>
       explanation,
     };
   });
+}
+
+export async function getCurrentUserId(): Promise<string | null> {
+  const { data: { session } } = await supabase.auth.getSession();
+  return session?.user?.id ?? null;
+}
+
+export async function ensureDefaultFolder(userId: string | null): Promise<string> {
+  if (userId === null) {
+    const folders = await getGuestFolders();
+    const existing = folders.find((f) => f.name === DEFAULT_FOLDER_NAME);
+    if (existing) return existing.id;
+    const newFolder: GuestFolder = {
+      id: genId(),
+      name: DEFAULT_FOLDER_NAME,
+      order_index: folders.length,
+    };
+    await setGuestFolders([...folders, newFolder]);
+    return newFolder.id;
+  }
+  const { data: existing } = await supabase
+    .from('bookmark_folders')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('name', DEFAULT_FOLDER_NAME)
+    .limit(1)
+    .maybeSingle();
+  if (existing?.id) return existing.id;
+
+  const maxOrder = await supabase
+    .from('bookmark_folders')
+    .select('order_index')
+    .eq('user_id', userId)
+    .order('order_index', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const orderIndex = (maxOrder?.data?.order_index ?? -1) + 1;
+  const { data: created, error } = await supabase
+    .from('bookmark_folders')
+    .insert({ user_id: userId, name: DEFAULT_FOLDER_NAME, order_index: orderIndex })
+    .select('id')
+    .single();
+  if (error) throw error;
+  return created.id;
+}
+
+export async function migrateNullFolderBookmarks(userId: string | null): Promise<void> {
+  if (userId === null) {
+    const defaultFolderId = await ensureDefaultFolder(null);
+    const bookmarks = await getGuestBookmarks();
+    const updated = bookmarks.map((b) =>
+      b.folder_id === '' ? { ...b, folder_id: defaultFolderId } : b
+    );
+    if (updated.some((b, i) => b.folder_id !== bookmarks[i].folder_id)) {
+      await setGuestBookmarks(updated);
+    }
+    return;
+  }
+  const defaultFolderId = await ensureDefaultFolder(userId);
+  await supabase
+    .from('bookmarks')
+    .update({ folder_id: defaultFolderId })
+    .eq('user_id', userId)
+    .is('folder_id', null);
+}
+
+export async function listFolders(userId: string | null): Promise<BookmarkFolder[]> {
+  if (userId === null) {
+    const folders = await getGuestFolders();
+    return folders.map((f) => ({
+      id: f.id,
+      user_id: '',
+      name: f.name,
+      order_index: f.order_index,
+      created_at: '',
+    }));
+  }
+  const { data, error } = await supabase
+    .from('bookmark_folders')
+    .select('id, user_id, name, order_index, created_at')
+    .eq('user_id', userId)
+    .order('order_index');
+  if (error) throw error;
+  return (data ?? []) as BookmarkFolder[];
+}
+
+export async function getFolder(userId: string | null, folderId: string): Promise<BookmarkFolder | null> {
+  if (userId === null) {
+    const folders = await getGuestFolders();
+    const f = folders.find((x) => x.id === folderId);
+    return f ? { id: f.id, user_id: '', name: f.name, order_index: f.order_index, created_at: '' } : null;
+  }
+  const { data, error } = await supabase
+    .from('bookmark_folders')
+    .select('id, user_id, name, order_index, created_at')
+    .eq('user_id', userId)
+    .eq('id', folderId)
+    .maybeSingle();
+  if (error) throw error;
+  return data as BookmarkFolder | null;
+}
+
+export async function createFolder(userId: string | null, name: string): Promise<BookmarkFolder> {
+  if (userId === null) {
+    const folders = await getGuestFolders();
+    const orderIndex = folders.length;
+    const newFolder: GuestFolder = { id: genId(), name: name.trim(), order_index: orderIndex };
+    await setGuestFolders([...folders, newFolder]);
+    return { id: newFolder.id, user_id: '', name: newFolder.name, order_index: newFolder.order_index, created_at: '' };
+  }
+  const { data: maxOrder } = await supabase
+    .from('bookmark_folders')
+    .select('order_index')
+    .eq('user_id', userId)
+    .order('order_index', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const orderIndex = ((maxOrder as { order_index?: number } | null)?.order_index ?? -1) + 1;
+  const { data, error } = await supabase
+    .from('bookmark_folders')
+    .insert({ user_id: userId, name: name.trim(), order_index: orderIndex })
+    .select()
+    .single();
+  if (error) throw error;
+  return data as BookmarkFolder;
+}
+
+export async function updateFolder(userId: string | null, folderId: string, name: string): Promise<void> {
+  if (userId === null) {
+    const folders = await getGuestFolders();
+    const idx = folders.findIndex((f) => f.id === folderId);
+    if (idx === -1 || folders[idx].name === DEFAULT_FOLDER_NAME) return;
+    const next = [...folders];
+    next[idx] = { ...next[idx], name: name.trim() };
+    await setGuestFolders(next);
+    return;
+  }
+  const { data: folder } = await supabase
+    .from('bookmark_folders')
+    .select('name')
+    .eq('id', folderId)
+    .eq('user_id', userId)
+    .single();
+  if (folder?.name === DEFAULT_FOLDER_NAME) return;
+
+  const { error } = await supabase
+    .from('bookmark_folders')
+    .update({ name: name.trim() })
+    .eq('id', folderId)
+    .eq('user_id', userId);
+  if (error) throw error;
+}
+
+export async function deleteFolder(userId: string | null, folderId: string): Promise<void> {
+  if (userId === null) {
+    const folders = await getGuestFolders();
+    const f = folders.find((x) => x.id === folderId);
+    if (!f || f.name === DEFAULT_FOLDER_NAME) return;
+    const defaultFolderId = await ensureDefaultFolder(null);
+    const bookmarks = await getGuestBookmarks();
+    const defaultWordIds = new Set(
+      bookmarks.filter((b) => b.folder_id === defaultFolderId).map((b) => b.word_id)
+    );
+    const toKeep = bookmarks.filter((b) => b.folder_id !== folderId);
+    const toMove = bookmarks.filter((b) => b.folder_id === folderId);
+    for (const b of toMove) {
+      if (!defaultWordIds.has(b.word_id)) {
+        toKeep.push({ ...b, folder_id: defaultFolderId });
+        defaultWordIds.add(b.word_id);
+      }
+    }
+    await setGuestBookmarks(toKeep);
+    await setGuestFolders(folders.filter((x) => x.id !== folderId));
+    return;
+  }
+  const { data: folder } = await supabase
+    .from('bookmark_folders')
+    .select('name')
+    .eq('id', folderId)
+    .eq('user_id', userId)
+    .single();
+  if (folder?.name === DEFAULT_FOLDER_NAME) return;
+
+  const defaultFolderId = await ensureDefaultFolder(userId);
+  const { data: inDefault } = await supabase
+    .from('bookmarks')
+    .select('word_id')
+    .eq('user_id', userId)
+    .eq('folder_id', defaultFolderId);
+  const defaultWordIds = new Set((inDefault ?? []).map((r) => r.word_id));
+
+  const { data: toMoveRows } = await supabase
+    .from('bookmarks')
+    .select('id, word_id')
+    .eq('user_id', userId)
+    .eq('folder_id', folderId);
+
+  for (const row of toMoveRows ?? []) {
+    if (defaultWordIds.has(row.word_id)) {
+      await supabase.from('bookmarks').delete().eq('id', row.id).eq('user_id', userId);
+    } else {
+      await supabase
+        .from('bookmarks')
+        .update({ folder_id: defaultFolderId })
+        .eq('id', row.id)
+        .eq('user_id', userId);
+      defaultWordIds.add(row.word_id);
+    }
+  }
+
+  const { error } = await supabase
+    .from('bookmark_folders')
+    .delete()
+    .eq('id', folderId)
+    .eq('user_id', userId);
+  if (error) throw error;
+}
+
+export async function getBookmarkedWordIds(userId: string | null): Promise<string[]> {
+  if (userId === null) {
+    const bookmarks = await getGuestBookmarks();
+    return [...new Set(bookmarks.map((b) => b.word_id))];
+  }
+  const { data, error } = await supabase
+    .from('bookmarks')
+    .select('word_id')
+    .eq('user_id', userId);
+  if (error) throw error;
+  return (data ?? []).map((r) => r.word_id);
+}
+
+export async function getBookmarkedWordIdsInDefaultFolder(userId: string | null): Promise<string[]> {
+  if (userId === null) {
+    const defaultFolderId = await ensureDefaultFolder(null);
+    const bookmarks = await getGuestBookmarks();
+    return bookmarks.filter((b) => b.folder_id === defaultFolderId).map((b) => b.word_id);
+  }
+  const defaultFolderId = await ensureDefaultFolder(userId);
+  const { data, error } = await supabase
+    .from('bookmarks')
+    .select('word_id')
+    .eq('user_id', userId)
+    .eq('folder_id', defaultFolderId);
+  if (error) throw error;
+  return (data ?? []).map((r) => r.word_id);
+}
+
+export async function listBookmarksByFolder(userId: string | null, folderId: string): Promise<Bookmark[]> {
+  if (userId === null) {
+    const bookmarks = await getGuestBookmarks();
+    return bookmarks
+      .filter((b) => b.folder_id === folderId)
+      .map((b) => ({ id: b.id, user_id: '', word_id: b.word_id, folder_id: b.folder_id, created_at: '' }));
+  }
+  const { data, error } = await supabase
+    .from('bookmarks')
+    .select('id, user_id, word_id, folder_id, created_at')
+    .eq('user_id', userId)
+    .eq('folder_id', folderId)
+    .order('created_at');
+  if (error) throw error;
+  return (data ?? []) as Bookmark[];
+}
+
+async function hasBookmarkInFolder(userId: string | null, folderId: string, wordId: string): Promise<boolean> {
+  if (userId === null) {
+    const bookmarks = await getGuestBookmarks();
+    return bookmarks.some((b) => b.folder_id === folderId && b.word_id === wordId);
+  }
+  const { data, error } = await supabase
+    .from('bookmarks')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('folder_id', folderId)
+    .eq('word_id', wordId)
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  return !!data?.id;
+}
+
+export async function addBookmark(userId: string | null, wordId: string, folderId?: string | null): Promise<void> {
+  const targetFolderId = folderId ?? (await ensureDefaultFolder(userId));
+  const exists = await hasBookmarkInFolder(userId, targetFolderId, wordId);
+  if (exists) return;
+
+  if (userId === null) {
+    const bookmarks = await getGuestBookmarks();
+    await setGuestBookmarks([...bookmarks, { id: genId(), word_id: wordId, folder_id: targetFolderId }]);
+    return;
+  }
+  const { error } = await supabase
+    .from('bookmarks')
+    .insert({ user_id: userId, word_id: wordId, folder_id: targetFolderId });
+  if (error) throw error;
+}
+
+export async function removeBookmark(userId: string | null, bookmarkId: string): Promise<void> {
+  if (userId === null) {
+    const bookmarks = await getGuestBookmarks();
+    await setGuestBookmarks(bookmarks.filter((b) => b.id !== bookmarkId));
+    return;
+  }
+  const { error } = await supabase
+    .from('bookmarks')
+    .delete()
+    .eq('id', bookmarkId)
+    .eq('user_id', userId);
+  if (error) throw error;
+}
+
+export async function removeBookmarkByWordAndFolder(userId: string | null, wordId: string, folderId: string): Promise<void> {
+  if (userId === null) {
+    const bookmarks = await getGuestBookmarks();
+    await setGuestBookmarks(bookmarks.filter((b) => !(b.word_id === wordId && b.folder_id === folderId)));
+    return;
+  }
+  const { error } = await supabase
+    .from('bookmarks')
+    .delete()
+    .eq('user_id', userId)
+    .eq('word_id', wordId)
+    .eq('folder_id', folderId);
+  if (error) throw error;
+}
+
+export async function isWordBookmarkedInDefaultFolder(userId: string | null, wordId: string): Promise<boolean> {
+  const defaultFolderId = await ensureDefaultFolder(userId);
+  return hasBookmarkInFolder(userId, defaultFolderId, wordId);
+}
+
+export async function removeBookmarkFromDefaultFolder(userId: string | null, wordId: string): Promise<void> {
+  const defaultFolderId = await ensureDefaultFolder(userId);
+  await removeBookmarkByWordAndFolder(userId, wordId, defaultFolderId);
+}
+
+export async function removeBookmarkByWord(userId: string | null, wordId: string): Promise<void> {
+  if (userId === null) {
+    const bookmarks = await getGuestBookmarks();
+    await setGuestBookmarks(bookmarks.filter((b) => b.word_id !== wordId));
+    return;
+  }
+  const { error } = await supabase
+    .from('bookmarks')
+    .delete()
+    .eq('user_id', userId)
+    .eq('word_id', wordId);
+  if (error) throw error;
+}
+
+export async function moveBookmark(userId: string | null, bookmarkId: string, targetFolderId: string): Promise<void> {
+  if (userId === null) {
+    const bookmarks = await getGuestBookmarks();
+    const row = bookmarks.find((b) => b.id === bookmarkId);
+    if (!row) return;
+    const alreadyInTarget = await hasBookmarkInFolder(null, targetFolderId, row.word_id);
+    if (alreadyInTarget) {
+      await setGuestBookmarks(bookmarks.filter((b) => b.id !== bookmarkId));
+      return;
+    }
+    await setGuestBookmarks(
+      bookmarks.map((b) => (b.id === bookmarkId ? { ...b, folder_id: targetFolderId } : b))
+    );
+    return;
+  }
+  const { data: row, error: fetchErr } = await supabase
+    .from('bookmarks')
+    .select('word_id, folder_id')
+    .eq('id', bookmarkId)
+    .eq('user_id', userId)
+    .single();
+  if (fetchErr || !row) throw fetchErr ?? new Error('Bookmark not found');
+
+  const alreadyInTarget = await hasBookmarkInFolder(userId, targetFolderId, row.word_id);
+  if (alreadyInTarget) {
+    await removeBookmark(userId, bookmarkId);
+    return;
+  }
+
+  const { error } = await supabase
+    .from('bookmarks')
+    .update({ folder_id: targetFolderId })
+    .eq('id', bookmarkId)
+    .eq('user_id', userId);
+  if (error) throw error;
 }
