@@ -10,9 +10,17 @@ import {
   Platform,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { VocabularyWord, fetchWordsWithContents } from '@/lib/supabase';
+import {
+  VocabularyWord,
+  fetchWordsWithContents,
+  getCurrentUserId,
+  getBookmarkedWordIds,
+  addBookmark,
+  removeBookmarkByWord,
+} from '@/lib/supabase';
 import FlipCard from '@/components/FlipCard';
 import AdBanner from '@/components/AdBanner';
+import BookmarkFolderPicker from '@/components/BookmarkFolderPicker';
 import { ChevronLeft, ChevronRight, Star, Moon, Sun } from 'lucide-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '@/lib/theme';
@@ -29,9 +37,9 @@ export default function StudyScreen() {
   const [loading, setLoading] = useState(true);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [bookmarkedIds, setBookmarkedIds] = useState<Set<string>>(new Set());
-  // 프로그레스 바 실제 너비 (onLayout으로 측정)
+  const [folderPickerVisible, setFolderPickerVisible] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
   const [progressBarWidth, setProgressBarWidth] = useState(width - 40);
-  // 키보드(F 키)로 플립을 트리거하기 위한 신호 값 (증가할 때마다 한 번 플립)
   const [flipSignal, setFlipSignal] = useState(0);
 
   const goHome = () => {
@@ -96,11 +104,10 @@ export default function StudyScreen() {
 
   const loadBookmarks = async () => {
     try {
-      const bookmarksJson = await AsyncStorage.getItem('bookmarks');
-      if (bookmarksJson) {
-        const bookmarks = JSON.parse(bookmarksJson);
-        setBookmarkedIds(new Set(bookmarks));
-      }
+      const uid = await getCurrentUserId();
+      setUserId(uid);
+      const ids = await getBookmarkedWordIds(uid ?? null);
+      setBookmarkedIds(new Set(ids));
     } catch (error) {
       console.error('Error loading bookmarks:', error);
     }
@@ -127,21 +134,28 @@ export default function StudyScreen() {
     if (words.length === 0) return;
 
     const wordId = words[currentIndex].id;
-    const newBookmarkedIds = new Set(bookmarkedIds);
+    const isCurrentlyBookmarked = bookmarkedIds.has(wordId);
 
-    if (newBookmarkedIds.has(wordId)) {
+    if (isCurrentlyBookmarked) {
+      const newBookmarkedIds = new Set(bookmarkedIds);
       newBookmarkedIds.delete(wordId);
+      try {
+        await removeBookmarkByWord(userId ?? null, wordId);
+        setBookmarkedIds(newBookmarkedIds);
+      } catch (error) {
+        console.error('Error removing bookmark:', error);
+      }
     } else {
-      newBookmarkedIds.add(wordId);
+      setFolderPickerVisible(true);
     }
+  };
 
-    setBookmarkedIds(newBookmarkedIds);
-
+  const handleBookmarkFolderSelect = async (folderId: string) => {
+    if (words.length === 0) return;
+    const wordId = words[currentIndex].id;
     try {
-      await AsyncStorage.setItem(
-        'bookmarks',
-        JSON.stringify(Array.from(newBookmarkedIds))
-      );
+      await addBookmark(userId ?? null, wordId, folderId);
+      setBookmarkedIds((prev) => new Set([...prev, wordId]));
     } catch (error) {
       console.error('Error saving bookmark:', error);
     }
@@ -377,6 +391,12 @@ export default function StudyScreen() {
         )}
       </View>
 
+      <BookmarkFolderPicker
+        visible={folderPickerVisible}
+        userId={userId}
+        onSelectFolder={handleBookmarkFolderSelect}
+        onClose={() => setFolderPickerVisible(false)}
+      />
       <AdBanner />
     </View>
   );

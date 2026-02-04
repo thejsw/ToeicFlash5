@@ -63,8 +63,11 @@
     - 하단 탭 네비게이션 레이아웃
   - index.tsx  
     - 앱 진입 시 기본 화면
-  - bookmarks.tsx  
-    - 북마크한 단어 목록 화면
+  - bookmarks/  
+    - 북마크 폴더 목록 및 폴더별 단어 목록
+    - index.tsx: 폴더 목록, 폴더 생성
+    - [folderId].tsx: 해당 폴더 북마크 단어 플래시카드
+    - _components/: MoveBookmarkSheet 등
 
 - study  
   - [day].tsx  
