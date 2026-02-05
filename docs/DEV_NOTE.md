@@ -105,6 +105,13 @@
   - Supabase Edge Function 기반 퀴즈 생성 함수  
   - OpenAI API 응답 파싱 로직 포함
 
+- functions/generate-weekly-quiz  
+  - 주차별 TOEIC Part 5 어휘 10문항 생성 후 **Edge Function에서 Service Role로 DB 직접 insert** (RLS 우회)  
+  - **필수 시크릿**: `OPENAI_API_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` (대시보드 → Edge Functions → generate-weekly-quiz → Secrets)  
+  - **serve import**: `https://deno.land/x/supabase_edge_runtime/mod.ts`  
+  - **대시보드 테스트**: Request Body `{}` 또는 `{ "weekNum": 2026021 }`  
+  - **localhost에서 401**: `npm run deploy:weekly-quiz` 로 재배포 (--no-verify-jwt)
+
 ---
 
 ## types 폴더 내부 구조

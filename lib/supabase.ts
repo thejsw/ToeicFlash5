@@ -196,11 +196,13 @@ export type DayQuizQuestion = {
   explanation: string;
 };
 
+/** Day 퀴즈 전용: week_num이 null인 퀴즈만 조회 (기존 로직 유지) */
 export async function fetchQuizByDay(dayNum: number): Promise<DayQuizQuestion[]> {
   const { data: quizData, error: quizError } = await supabase
     .from('quizzes')
     .select('id')
     .eq('day_num', dayNum)
+    .is('week_num', null)
     .limit(1)
     .maybeSingle();
 
@@ -297,6 +299,213 @@ export async function fetchQuizByDay(dayNum: number): Promise<DayQuizQuestion[]>
       explanation,
     };
   });
+}
+
+const WEEKLY_MOCK_TYPE = 'weekly_mock_light';
+
+/** Week 퀴즈 존재 여부 및 quiz id (test_quizzes, 동일 week_num 중복 생성 방지용) */
+export async function getWeeklyQuizId(weekNum: number): Promise<string | null> {
+  const { data, error } = await supabase
+    .from('test_quizzes')
+    .select('id')
+    .eq('type', WEEKLY_MOCK_TYPE)
+    .eq('week_num', weekNum)
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  return data?.id ?? null;
+}
+
+export type FetchQuizByWeekResult = {
+  questions: DayQuizQuestion[];
+  created_at: string | null;
+};
+
+/** Week 퀴즈 문항 조회 (test_* 테이블, created_at 포함) */
+export async function fetchQuizByWeek(weekNum: number): Promise<FetchQuizByWeekResult> {
+  const { data: quizData, error: quizError } = await supabase
+    .from('test_quizzes')
+    .select('id, created_at')
+    .eq('type', WEEKLY_MOCK_TYPE)
+    .eq('week_num', weekNum)
+    .limit(1)
+    .maybeSingle();
+
+  if (quizError) throw quizError;
+  if (!quizData?.id) return { questions: [], created_at: null };
+
+  const quizId = quizData.id;
+  const created_at = quizData.created_at ?? null;
+
+  const { data: questionsData, error: questionsError } = await supabase
+    .from('test_quiz_questions')
+    .select('id, word_id, quiz_id, question_text, order_index')
+    .eq('quiz_id', quizId)
+    .order('order_index');
+
+  if (questionsError) throw questionsError;
+  const questions = (questionsData ?? []) as QuizQuestionRow[];
+  if (questions.length === 0) return { questions: [], created_at };
+
+  const questionIds = questions.map((q) => q.id);
+  const { data: choicesData, error: choicesError } = await supabase
+    .from('test_quiz_choices')
+    .select('id, question_id, choice_key, choice_text, is_correct')
+    .in('question_id', questionIds)
+    .order('order_index');
+
+  if (choicesError) throw choicesError;
+  const choices = (choicesData ?? []) as QuizChoiceRow[];
+
+  const { data: explanationsData, error: explanationsError } = await supabase
+    .from('test_quiz_explanations')
+    .select('question_id, explanation, language')
+    .in('question_id', questionIds)
+    .order('order_index');
+
+  if (explanationsError) throw explanationsError;
+  const explanations = (explanationsData ?? []) as QuizExplanationRow[];
+
+  const choicesByQuestion = new Map<string, QuizChoiceRow[]>();
+  for (const c of choices) {
+    if (!c.question_id) continue;
+    const list = choicesByQuestion.get(c.question_id) ?? [];
+    list.push(c);
+    choicesByQuestion.set(c.question_id, list);
+  }
+
+  const explanationByQuestion = new Map<string, string>();
+  const explanationLangByQuestion = new Map<string, boolean>();
+  for (const e of explanations) {
+    if (!e.question_id) continue;
+    const isKo = (e.language ?? '').toLowerCase().startsWith('ko');
+    const existingIsKo = explanationLangByQuestion.get(e.question_id);
+    if (existingIsKo === undefined || (isKo && !existingIsKo)) {
+      explanationByQuestion.set(e.question_id, e.explanation ?? '');
+      explanationLangByQuestion.set(e.question_id, isKo);
+    }
+  }
+
+  function fixTextEncoding(str: string): string {
+    return str
+      .replace(/\uFFFD/g, "'")
+      .replace(/â€™|Ã¢â‚¬â„¢|Ã¢â‚¬™|â€˜/g, "'")
+      .replace(/â€œ|â€|â€\u009d/g, '"');
+  }
+
+  const orderKeys = ['A', 'B', 'C', 'D', 'a', 'b', 'c', 'd'];
+
+  const result = questions.map((q) => {
+    const rawChoices = choicesByQuestion.get(q.id) ?? [];
+    const choiceList = rawChoices
+      .map((c) => ({
+        choice_key: c.choice_key ?? '',
+        choice_text: fixTextEncoding((c.choice_text ?? '').trim()),
+        is_correct: c.is_correct === true,
+      }))
+      .filter((c) => c.choice_text);
+
+    const sorted = [...choiceList].sort((a, b) => {
+      const ai = orderKeys.indexOf(a.choice_key);
+      const bi = orderKeys.indexOf(b.choice_key);
+      if (ai >= 0 && bi >= 0) return ai - bi;
+      if (ai >= 0) return -1;
+      if (bi >= 0) return 1;
+      return a.choice_key.localeCompare(b.choice_key);
+    });
+
+    const correctChoice = sorted.find((c) => c.is_correct);
+    const answer = correctChoice?.choice_text ?? (sorted[0]?.choice_text ?? '');
+    const explanation = fixTextEncoding(explanationByQuestion.get(q.id) ?? '');
+
+    return {
+      id: q.id,
+      question_text: fixTextEncoding((q.question_text ?? '').trim()),
+      choices: sorted.map((c) => ({ choice_key: c.choice_key, choice_text: c.choice_text })),
+      answer,
+      explanation,
+    };
+  });
+
+  return { questions: result, created_at };
+}
+
+/** 주차 퀴즈 저장 시 word_id placeholder (test_quiz_questions 등, Edge Function에서 사용) */
+export async function getPlaceholderWordId(): Promise<string> {
+  const { data, error } = await supabase
+    .from('words')
+    .select('id')
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data?.id) throw new Error('words 테이블에 단어가 없어 주차 퀴즈를 저장할 수 없습니다.');
+  return data.id;
+}
+
+export type WeeklyQuizQuestionInput = {
+  question: string;
+  choices: string[];
+  answer: string;
+  explanation: string;
+};
+
+/** 주차 퀴즈 1건 DB 저장 (동일 week_num 중복 호출 금지 — 호출 전 getWeeklyQuizId로 확인) */
+export async function insertWeeklyQuiz(
+  weekNum: number,
+  questions: WeeklyQuizQuestionInput[]
+): Promise<string> {
+  const placeholderWordId = await getPlaceholderWordId();
+
+  const { data: quizRow, error: quizError } = await supabase
+    .from('quizzes')
+    .insert({
+      type: WEEKLY_MOCK_TYPE,
+      day_num: null,
+      week_num: weekNum,
+    })
+    .select('id')
+    .single();
+
+  if (quizError) throw quizError;
+  const quizId = quizRow.id;
+
+  const orderKeys = ['A', 'B', 'C', 'D'];
+  for (let i = 0; i < questions.length; i++) {
+    const q = questions[i];
+    const { data: questionRow, error: qErr } = await supabase
+      .from('quiz_questions')
+      .insert({
+        word_id: placeholderWordId,
+        quiz_id: quizId,
+        question_text: q.question,
+        order_index: i,
+      })
+      .select('id')
+      .single();
+    if (qErr) throw qErr;
+    const questionId = questionRow.id;
+
+    const choices = Array.isArray(q.choices) ? q.choices : [];
+    const answerText = (q.answer ?? '').trim();
+    for (let j = 0; j < choices.length; j++) {
+      const choiceText = (choices[j] ?? '').trim();
+      if (!choiceText) continue;
+      await supabase.from('quiz_choices').insert({
+        question_id: questionId,
+        choice_key: orderKeys[j] ?? String.fromCharCode(65 + j),
+        choice_text: choiceText,
+        is_correct: choiceText === answerText,
+      });
+    }
+
+    await supabase.from('quiz_explanations').insert({
+      question_id: questionId,
+      language: 'ko',
+      explanation: q.explanation ?? '',
+    });
+  }
+
+  return quizId;
 }
 
 export async function getCurrentUserId(): Promise<string | null> {

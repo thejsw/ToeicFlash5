@@ -1,11 +1,9 @@
 import { Tabs } from 'expo-router';
-import { Home, Bookmark } from 'lucide-react-native';
+import { Home, Bookmark, ClipboardList, User } from 'lucide-react-native';
 import { useTheme } from '@/lib/theme';
 
 export default function TabLayout() {
-  const { colors, theme } = useTheme();
-
-  const isDark = theme === 'dark';
+  const { colors } = useTheme();
 
   return (
     <Tabs
@@ -21,18 +19,36 @@ export default function TabLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Home',
+          title: '홈',
           tabBarIcon: ({ size, color }) => (
             <Home size={size} color={color} />
           ),
         }}
       />
       <Tabs.Screen
+        name="test"
+        options={{
+          title: '테스트',
+          tabBarIcon: ({ size, color }) => (
+            <ClipboardList size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="bookmarks"
         options={{
-          title: 'Bookmarks',
+          title: '북마크',
           tabBarIcon: ({ size, color }) => (
             <Bookmark size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="profile"
+        options={{
+          title: '프로필',
+          tabBarIcon: ({ size, color }) => (
+            <User size={size} color={color} />
           ),
         }}
       />

@@ -1,0 +1,7 @@
+# Edge Functions: anon key만으로 호출 가능하도록 JWT 검증 비활성화
+# config.toml만으로는 배포 시 반영이 안 될 수 있음 → npm run deploy:weekly-quiz 사용 권장
+[functions.generate-weekly-quiz]
+verify_jwt = false
+
+[functions.generate-quiz]
+verify_jwt = false
