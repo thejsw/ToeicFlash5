@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import Constants from 'expo-constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react-native';
 import 'react-native-url-polyfill/auto';
 
 const GUEST_FOLDERS_KEY = 'bookmark_guest_folders';
@@ -51,7 +52,14 @@ if (!supabaseUrl || !supabaseAnonKey) {
   );
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    storage: Platform.OS === 'web' ? undefined : AsyncStorage,
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: Platform.OS === 'web',
+  },
+});
 
 // ---------------------------------------------------------------------------
 // Types (docs/DB_SCHEMA.md 기준)
@@ -508,9 +516,253 @@ export async function insertWeeklyQuiz(
   return quizId;
 }
 
+// ---------------------------------------------------------------------------
+// Auth Types
+// ---------------------------------------------------------------------------
+
+export type UserProfile = {
+  id: string;
+  username: string | null;
+  avatar_url: string | null;
+  provider: string | null;
+  created_at: string;
+};
+
+export type UserSettings = {
+  id: string;
+  user_id: string;
+  learning_language: string;
+  notification_enabled: boolean;
+  updated_at: string;
+};
+
+// ---------------------------------------------------------------------------
+// Auth Functions
+// ---------------------------------------------------------------------------
+
 export async function getCurrentUserId(): Promise<string | null> {
   const { data: { session } } = await supabase.auth.getSession();
   return session?.user?.id ?? null;
+}
+
+export async function signInWithGoogle(redirectTo?: string) {
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider: 'google',
+    options: {
+      redirectTo,
+    },
+  });
+  if (error) throw error;
+  return data;
+}
+
+export async function signInWithMagicLink(email: string, redirectTo?: string) {
+  const { data, error } = await supabase.auth.signInWithOtp({
+    email,
+    options: {
+      emailRedirectTo: redirectTo,
+    },
+  });
+  if (error) throw error;
+  return data;
+}
+
+export async function signOut() {
+  const { error } = await supabase.auth.signOut();
+  if (error) throw error;
+}
+
+export async function deleteUserAccount() {
+  const userId = await getCurrentUserId();
+  if (!userId) throw new Error('로그인이 필요합니다.');
+
+  // Call Edge Function to delete user (requires admin privileges)
+  const { data, error } = await supabase.functions.invoke('delete-user', {
+    body: { user_id: userId },
+  });
+  if (error) throw error;
+  return data;
+}
+
+// ---------------------------------------------------------------------------
+// User Profile Functions
+// ---------------------------------------------------------------------------
+
+export async function getUserProfile(userId: string): Promise<UserProfile | null> {
+  const { data, error } = await supabase
+    .from('user_profiles')
+    .select('id, username, avatar_url, provider, created_at')
+    .eq('id', userId)
+    .maybeSingle();
+  if (error) throw error;
+  return data as UserProfile | null;
+}
+
+export async function upsertUserProfile(
+  userId: string,
+  updates: { username?: string; avatar_url?: string; provider?: string }
+): Promise<UserProfile> {
+  const { data, error } = await supabase
+    .from('user_profiles')
+    .upsert({
+      id: userId,
+      ...updates,
+    })
+    .select('id, username, avatar_url, provider, created_at')
+    .single();
+  if (error) throw error;
+  return data as UserProfile;
+}
+
+export async function updateUserProfile(
+  userId: string,
+  updates: { username?: string; avatar_url?: string }
+): Promise<void> {
+  const { error } = await supabase
+    .from('user_profiles')
+    .update(updates)
+    .eq('id', userId);
+  if (error) throw error;
+}
+
+const AVATARS_BUCKET = 'avatars';
+
+/** 프로필 이미지를 Supabase Storage에 업로드하고 public URL 반환
+ * Supabase 대시보드에서 'avatars' 버킷을 생성하고 public 접근을 허용해주세요.
+ */
+export async function uploadAvatar(userId: string, uri: string): Promise<string> {
+  const fileName = `${userId}/${Date.now()}.jpg`;
+
+  const response = await fetch(uri);
+  const blob = await response.blob();
+
+  const { error: uploadError } = await supabase.storage
+    .from(AVATARS_BUCKET)
+    .upload(fileName, blob, {
+      contentType: blob.type || 'image/jpeg',
+      upsert: true,
+    });
+
+  if (uploadError) throw uploadError;
+
+  const { data } = supabase.storage.from(AVATARS_BUCKET).getPublicUrl(fileName);
+  return data.publicUrl;
+}
+
+// ---------------------------------------------------------------------------
+// User Settings Functions
+// ---------------------------------------------------------------------------
+
+export async function getUserSettings(userId: string): Promise<UserSettings | null> {
+  const { data, error } = await supabase
+    .from('user_settings')
+    .select('id, user_id, learning_language, notification_enabled, updated_at')
+    .eq('user_id', userId)
+    .maybeSingle();
+  if (error) throw error;
+  return data as UserSettings | null;
+}
+
+/** 로그인 시 user_settings가 없으면 기본값으로 생성 */
+export async function ensureUserSettings(userId: string): Promise<UserSettings> {
+  const existing = await getUserSettings(userId);
+  if (existing) return existing;
+  return upsertUserSettings(userId, {
+    learning_language: 'ko',
+    notification_enabled: true,
+  });
+}
+
+export async function upsertUserSettings(
+  userId: string,
+  updates: { learning_language?: string; notification_enabled?: boolean }
+): Promise<UserSettings> {
+  // First check if settings exist
+  const existing = await getUserSettings(userId);
+  
+  if (existing) {
+    const { data, error } = await supabase
+      .from('user_settings')
+      .update({
+        ...updates,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('user_id', userId)
+      .select('id, user_id, learning_language, notification_enabled, updated_at')
+      .single();
+    if (error) throw error;
+    return data as UserSettings;
+  } else {
+    const { data, error } = await supabase
+      .from('user_settings')
+      .insert({
+        user_id: userId,
+        learning_language: updates.learning_language ?? 'ko',
+        notification_enabled: updates.notification_enabled ?? true,
+      })
+      .select('id, user_id, learning_language, notification_enabled, updated_at')
+      .single();
+    if (error) throw error;
+    return data as UserSettings;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// User Progress Functions
+// ---------------------------------------------------------------------------
+
+export async function getUserProgressList(userId: string): Promise<UserProgress[]> {
+  const { data, error } = await supabase
+    .from('user_progress')
+    .select('id, user_id, day, last_card_index, updated_at')
+    .eq('user_id', userId)
+    .order('day');
+  if (error) throw error;
+  return (data ?? []) as UserProgress[];
+}
+
+/** Day 학습/퀴즈 완료 시 user_progress에 저장 (로그인 사용자만) */
+export async function upsertUserProgress(
+  userId: string,
+  day: number,
+  lastCardIndex: number
+): Promise<void> {
+  const { data: existing } = await supabase
+    .from('user_progress')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('day', day)
+    .maybeSingle();
+
+  if (existing?.id) {
+    const { error } = await supabase
+      .from('user_progress')
+      .update({
+        last_card_index: lastCardIndex,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('user_id', userId)
+      .eq('day', day);
+    if (error) throw error;
+  } else {
+    const { error } = await supabase.from('user_progress').insert({
+      user_id: userId,
+      day,
+      last_card_index: lastCardIndex,
+    });
+    if (error) throw error;
+  }
+}
+
+/** test_quizzes에서 주차별 모의고사가 존재하는 week_num 목록 반환 (응시 가능한 주차 수) */
+export async function getWeeklyQuizAttempts(userId: string): Promise<number[]> {
+  const { data, error } = await supabase
+    .from('test_quizzes')
+    .select('week_num')
+    .eq('type', 'weekly_mock_light')
+    .not('week_num', 'is', null);
+  if (error) throw error;
+  return [...new Set((data ?? []).map((d) => d.week_num as number))].sort((a, b) => a - b);
 }
 
 export async function ensureDefaultFolder(userId: string | null): Promise<string> {

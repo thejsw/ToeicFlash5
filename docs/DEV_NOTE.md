@@ -22,10 +22,12 @@
   - 아이콘, 이미지 리소스
 
 - components  
-  - 재사용 가능한 UI 컴포넌트
+  - 재사용 가능한 UI 컴포넌트  
+  - AuthProvider.tsx: Supabase 인증 상태, 로그인 시 user_profiles·user_settings 자동 생성
 
 - hooks  
   - 커스텀 React Hooks  
+  - useAuth.ts: AuthContext 훅  
   - 웹 환경 초기화 관련 Hook 포함
 
 - lib  
@@ -41,7 +43,8 @@
   - 타입 정의 및 도메인 모델
 
 - docs  
-  - 문서 및 레퍼런스
+  - 문서 및 레퍼런스  
+  - CHANGELOG_20250210.md: 일별 변경 이력
 
 - 설정 파일  
   - 빌드, 환경 변수, 포맷 설정
@@ -51,7 +54,8 @@
 ## app 폴더 내부 구조
 
 - _layout.tsx  
-  - 앱 전체 최상위 레이아웃
+  - 앱 전체 최상위 레이아웃  
+  - ThemeProvider, AuthProvider 래핑
 
 - +not-found.tsx  
   - 잘못된 라우트 접근 시 표시되는 404 화면
@@ -62,7 +66,12 @@
   - _layout.tsx  
     - 하단 탭 네비게이션 레이아웃
   - index.tsx  
-    - 앱 진입 시 기본 화면
+    - 앱 진입 시 기본 화면  
+    - 로그인 시 user_progress 기반 Day 진행도, 비로그인 시 AsyncStorage
+  - profile/  
+    - index.tsx: 프로필, 닉네임 인라인 편집, Google 로그인
+    - _layout.tsx: Stack (index, settings)
+    - settings.tsx: 콘텐츠 표시 언어(한/일), 푸시 알림, 계정 삭제
   - bookmarks/  
     - 북마크 폴더 목록 및 폴더별 단어 목록
     - index.tsx: 폴더 목록, 폴더 생성
@@ -71,7 +80,8 @@
 
 - study  
   - [day].tsx  
-    - Day별 단어 학습(플래시카드) 화면
+    - Day별 단어 학습(플래시카드) 화면  
+    - Day 학습 완료 시 user_progress 저장 (로그인 사용자)
   - [day]/  
     - quiz.tsx  
       - 학습 이후 이어지는 퀴즈 흐름
@@ -79,14 +89,18 @@
       - Day 학습 전체 완료 화면
     - quiz/  
       - result.tsx  
-        - 퀴즈 풀이 후 결과 화면
+        - 퀴즈 풀이 후 결과 화면  
+        - 퀴즈 완료 시 user_progress 저장 (로그인 사용자)
 
 ---
 
 ## lib 폴더 내부 구조
 
 - supabase.ts  
-  - Supabase DB 연결 설정 및 타입 정의
+  - Supabase DB 연결 설정 및 타입 정의  
+  - 인증: signInWithGoogle, signOut, getCurrentUserId  
+  - user_profiles, user_settings(ensureUserSettings), user_progress(upsertUserProgress)  
+  - uploadAvatar (Supabase Storage avatars 버킷)
 
 - llm.ts  
   - OpenAI API 호출 로직
@@ -111,6 +125,11 @@
   - **serve import**: `https://deno.land/x/supabase_edge_runtime/mod.ts`  
   - **대시보드 테스트**: Request Body `{}` 또는 `{ "weekNum": 2026021 }`  
   - **localhost에서 401**: `npm run deploy:weekly-quiz` 로 재배포 (--no-verify-jwt)
+
+- functions/delete-user  
+  - 계정 삭제 Edge Function (Service Role)  
+  - bookmarks → bookmark_folders → user_progress → user_settings → user_profiles → auth 사용자 순 삭제  
+  - Authorization 헤더로 본인 확인 후 삭제
 
 ---
 

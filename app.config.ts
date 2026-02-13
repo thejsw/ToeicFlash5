@@ -16,10 +16,11 @@ const config: ExpoConfig = {
   newArchEnabled: true,
   ios: {
     supportsTablet: true,
+    bundleIdentifier: 'com.thejsw.toeicflashcardvoca',
   },
   android: {
     package: 'com.thejsw.toeicflashcardvoca',
-    versionCode: 17,
+    versionCode: 18,
     adaptiveIcon: {
       foregroundImage: './assets/images/Flash5Icon.png',
       backgroundColor: '#ffffff',

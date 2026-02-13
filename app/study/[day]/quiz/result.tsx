@@ -5,6 +5,7 @@ import { useTheme } from '@/lib/theme';
 import { ChevronLeft, CheckCircle, XCircle } from 'lucide-react-native';
 import { QuizQuestion, QuizResult } from '@/types/quiz';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getCurrentUserId, upsertUserProgress } from '@/lib/supabase';
 
 export default function DayQuizResultScreen() {
   const router = useRouter();
@@ -44,12 +45,15 @@ export default function DayQuizResultScreen() {
       const correctCount = calculatedResults.filter((r) => r.isCorrect).length;
       setResults(calculatedResults);
       setScore(correctCount);
-      
-      // 퀴즈 완료 상태 저장
-      try {
-        await AsyncStorage.setItem(`quiz_completed_day_${day}`, 'true');
-      } catch (error) {
-        console.error('Error saving quiz completion:', error);
+
+      await AsyncStorage.setItem(`quiz_completed_day_${day}`, 'true');
+      const uid = await getCurrentUserId();
+      if (uid) {
+        try {
+          await upsertUserProgress(uid, parseInt(day || '0', 10), 0);
+        } catch (error) {
+          console.error('Error saving user progress:', error);
+        }
       }
     } catch (error) {
       console.error('Error calculating results:', error);
