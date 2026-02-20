@@ -10,34 +10,46 @@ import {
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useTheme } from '@/lib/theme';
+import { useAuth } from '@/hooks/useAuth';
 import { ClipboardList } from 'lucide-react-native';
 import { getCurrentWeekNum, formatWeeklyQuizTitle } from '@/lib/weekUtils';
-import { getWeeklyQuizId } from '@/lib/supabase';
+import { listAvailableWeeklyQuizzes, isAuthError, type WeeklyQuizItem } from '@/lib/supabase';
 import { generateWeeklyQuizQuestions } from '@/lib/llm';
 import AdBanner from '@/components/AdBanner';
+
+function withTimeout<T>(promise: Promise<T>, ms = 12000): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => {
+      setTimeout(() => reject(new Error('요청 시간이 초과되었습니다.')), ms);
+    }),
+  ]);
+}
 
 export default function TestScreen() {
   const router = useRouter();
   const { colors } = useTheme();
+  const { handleSessionError } = useAuth();
   const [loading, setLoading] = useState(true);
-  const [creating, setCreating] = useState(false);
-  const [currentWeekNum, setCurrentWeekNum] = useState<number | null>(null);
-  const [hasQuiz, setHasQuiz] = useState(false);
+  const [creating, setCreating] = useState<number | null>(null);
+  const [quizzes, setQuizzes] = useState<WeeklyQuizItem[]>([]);
+  const [currentWeekNum] = useState(() => getCurrentWeekNum());
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const weekNum = getCurrentWeekNum();
-      setCurrentWeekNum(weekNum);
-      const quizId = await getWeeklyQuizId(weekNum);
-      setHasQuiz(!!quizId);
+      const list = await withTimeout(listAvailableWeeklyQuizzes());
+      setQuizzes(list);
     } catch (e) {
-      console.error('Error loading weekly quiz state:', e);
-      setHasQuiz(false);
+      console.error('Error loading weekly quiz list:', e);
+      if (isAuthError(e)) {
+        await handleSessionError();
+      }
+      setQuizzes([]);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [handleSessionError]);
 
   useFocusEffect(
     useCallback(() => {
@@ -45,24 +57,31 @@ export default function TestScreen() {
     }, [load])
   );
 
-  const handleStartOrCreate = async () => {
-    if (currentWeekNum == null) return;
+  const hasCurrentQuiz = quizzes.some((q) => q.week_num === currentWeekNum);
 
-    if (hasQuiz) {
-      router.push(`/test/week/${currentWeekNum}/quiz`);
-      return;
-    }
+  const handleStart = (weekNum: number) => {
+    router.push(`/test/week/${weekNum}/quiz`);
+  };
 
-    setCreating(true);
+  const handleCreateAndStart = async () => {
+    setCreating(currentWeekNum);
     try {
       await generateWeeklyQuizQuestions(currentWeekNum);
-      setHasQuiz(true);
+      setQuizzes((prev) => {
+        const exists = prev.some((q) => q.week_num === currentWeekNum);
+        if (exists) return prev;
+        return [{ week_num: currentWeekNum, created_at: new Date().toISOString() }, ...prev];
+      });
       router.push(`/test/week/${currentWeekNum}/quiz`);
     } catch (err: any) {
       console.error('Error creating weekly quiz:', err);
       const msg = err?.message ?? '';
       if (msg.includes('이미 해당 주차') || msg.includes('alreadyExists')) {
-        setHasQuiz(true);
+        setQuizzes((prev) => {
+          const exists = prev.some((q) => q.week_num === currentWeekNum);
+          if (exists) return prev;
+          return [{ week_num: currentWeekNum, created_at: new Date().toISOString() }, ...prev];
+        });
         router.push(`/test/week/${currentWeekNum}/quiz`);
         return;
       }
@@ -70,7 +89,7 @@ export default function TestScreen() {
         'Supabase 대시보드에서 Edge Function "generate-weekly-quiz" 배포 여부와 시크릿(OPENAI_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY) 설정을 확인해주세요.';
       Alert.alert('생성 실패', `${msg || '주차 모의고사를 생성하는 중 오류가 발생했습니다.'}\n\n${hint}`);
     } finally {
-      setCreating(false);
+      setCreating(null);
     }
   };
 
@@ -81,8 +100,6 @@ export default function TestScreen() {
       </View>
     );
   }
-
-  const title = currentWeekNum != null ? formatWeeklyQuizTitle(currentWeekNum) : '';
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -95,28 +112,47 @@ export default function TestScreen() {
 
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={[styles.scrollContent, { paddingBottom: 24 }]}>
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: 24 }]}
+        showsVerticalScrollIndicator={false}>
+        {/* 이번 주 모의고사 (없으면 생성 버튼) */}
         <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <View style={[styles.iconWrap, { backgroundColor: colors.primaryLight }]}>
             <ClipboardList size={32} color={colors.primary} />
           </View>
-          <Text style={[styles.cardTitle, { color: colors.text }]}>{title}</Text>
-          {hasQuiz ? (
-            <Text style={[styles.cardDesc, { color: colors.textSecondary }]}>
-              저장된 모의고사입니다. 다시 풀어볼 수 있습니다.
-            </Text>
-          ) : null}
+          <Text style={[styles.cardTitle, { color: colors.text }]}>
+            {formatWeeklyQuizTitle(currentWeekNum)}
+          </Text>
+          <Text style={[styles.cardDesc, { color: colors.textSecondary }]}>
+            {hasCurrentQuiz ? '저장된 모의고사입니다. 다시 풀어볼 수 있습니다.' : '이번 주 모의고사'}
+          </Text>
           <TouchableOpacity
             style={[styles.button, { backgroundColor: colors.primary }]}
-            onPress={handleStartOrCreate}
-            disabled={creating}>
-            {creating ? (
+            onPress={hasCurrentQuiz ? () => handleStart(currentWeekNum) : handleCreateAndStart}
+            disabled={creating !== null}>
+            {creating === currentWeekNum ? (
               <ActivityIndicator size="small" color="#fff" />
             ) : (
-              <Text style={styles.buttonText}>{hasQuiz ? '시작하기' : '시작'}</Text>
+              <Text style={styles.buttonText}>{hasCurrentQuiz ? '시작하기' : '시작'}</Text>
             )}
           </TouchableOpacity>
         </View>
+
+        {/* 이전 모의고사 목록 */}
+        {quizzes
+          .filter((q) => q.week_num !== currentWeekNum)
+          .map((q) => (
+            <TouchableOpacity
+              key={q.week_num}
+              style={[styles.card, styles.cardCompact, { backgroundColor: colors.surface, borderColor: colors.border }]}
+              onPress={() => handleStart(q.week_num)}
+              activeOpacity={0.7}>
+              <Text style={[styles.cardTitle, { color: colors.text }]}>{formatWeeklyQuizTitle(q.week_num)}</Text>
+              <Text style={[styles.cardDesc, { color: colors.textSecondary }]}>다시 풀어보기</Text>
+              <View style={[styles.button, styles.buttonOutline, { borderColor: colors.primary }]}>
+                <Text style={[styles.buttonText, { color: colors.primary }]}>시작하기</Text>
+              </View>
+            </TouchableOpacity>
+          ))}
       </ScrollView>
 
       <AdBanner />
@@ -158,6 +194,10 @@ const styles = StyleSheet.create({
     padding: 24,
     alignItems: 'center',
   },
+  cardCompact: {
+    padding: 20,
+    marginTop: 12,
+  },
   iconWrap: {
     width: 56,
     height: 56,
@@ -184,6 +224,10 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     minWidth: 160,
     alignItems: 'center',
+  },
+  buttonOutline: {
+    backgroundColor: 'transparent',
+    borderWidth: 2,
   },
   buttonText: {
     color: '#ffffff',

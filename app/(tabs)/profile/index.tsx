@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -6,30 +6,33 @@ import {
   TouchableOpacity,
   Image,
   ScrollView,
-  TextInput,
   ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { useTheme } from '@/lib/theme';
 import { useAuth } from '@/hooks/useAuth';
-import {
-  getUserProgressList,
-  getWeeklyQuizAttempts,
-  updateUserProfile,
-  UserProgress,
-} from '@/lib/supabase';
+import { getUserProgressList, getWeeklyQuizAttempts, isAuthError, UserProgress } from '@/lib/supabase';
 import {
   User,
   Settings,
   LogOut,
   ChevronRight,
+  Check,
   BookOpen,
   ClipboardCheck,
-  Check,
 } from 'lucide-react-native';
+
+function withTimeout<T>(promise: Promise<T>, ms = 12000): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => {
+      setTimeout(() => reject(new Error('요청 시간이 초과되었습니다.')), ms);
+    }),
+  ]);
+}
 
 // Google 아이콘 SVG 대체 컴포넌트
 function GoogleIcon({ size, color }: { size: number; color: string }) {
@@ -54,43 +57,73 @@ function GoogleIcon({ size, color }: { size: number; color: string }) {
 export default function ProfileScreen() {
   const { colors } = useTheme();
   const router = useRouter();
-  const { user, profile, loading, initialized, signInWithGoogle, signOut, refreshProfile } =
+  const { user, profile, loading, initialized, signInWithGoogle, signOut, syncProfileFromAuth, handleSessionError } =
     useAuth();
 
+  // DB 프로필이 비어있는데 구글 user_metadata에 있으면 동기화
+  const displayNickname = useMemo(() => {
+    if (profile?.username) return profile.username;
+    const meta = user?.user_metadata ?? {};
+    const identityData = (user?.identities?.[0] as { identity_data?: Record<string, unknown> } | undefined)?.identity_data ?? {};
+    return (identityData.full_name ?? identityData.name ?? meta.full_name ?? meta.name ?? user?.email?.split('@')[0] ?? '') as string;
+  }, [user, profile?.username]);
+  const displayAvatar = useMemo(() => {
+    if (profile?.avatar_url) return profile.avatar_url;
+    const meta = user?.user_metadata ?? {};
+    const identityData = (user?.identities?.[0] as { identity_data?: Record<string, unknown> } | undefined)?.identity_data ?? {};
+    return (identityData.avatar_url ?? identityData.picture ?? meta.avatar_url ?? meta.picture ?? null) as string | null;
+  }, [user, profile?.avatar_url]);
+
   const [authLoading, setAuthLoading] = useState(false);
-  const [nickname, setNickname] = useState('');
-  const [nicknameSaving, setNicknameSaving] = useState(false);
   const [progressList, setProgressList] = useState<UserProgress[]>([]);
   const [weeklyAttempts, setWeeklyAttempts] = useState<number[]>([]);
   const [statsLoading, setStatsLoading] = useState(false);
 
-  useEffect(() => {
-    setNickname(profile?.username ?? '');
-  }, [profile?.username]);
+  // 프로필 탭 포커스 시 프로필이 없으면 생성 시도 (신규 유저)
+  useFocusEffect(
+    useCallback(() => {
+      if (user && !profile) {
+        syncProfileFromAuth();
+      }
+    }, [user, profile, syncProfileFromAuth])
+  );
 
   // 학습 정보 로드
   const loadStats = useCallback(async () => {
     if (!user) return;
     setStatsLoading(true);
     try {
-      const [progress, weeks] = await Promise.all([
+      const [progress, weeks] = await withTimeout(Promise.all([
         getUserProgressList(user.id),
         getWeeklyQuizAttempts(user.id),
-      ]);
+      ]));
       setProgressList(progress);
       setWeeklyAttempts(weeks);
     } catch (error) {
       console.error('Failed to load stats:', error);
+      if (isAuthError(error)) {
+        await handleSessionError();
+      }
+      setProgressList([]);
+      setWeeklyAttempts([]);
     } finally {
       setStatsLoading(false);
     }
-  }, [user]);
+  }, [user, handleSessionError]);
 
   useEffect(() => {
     if (user) {
       loadStats();
     }
   }, [user, loadStats]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (user) {
+        loadStats();
+      }
+    }, [user, loadStats])
+  );
 
   const handleGoogleSignIn = async () => {
     setAuthLoading(true);
@@ -129,20 +162,6 @@ export default function ProfileScreen() {
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : '알 수 없는 오류';
       Alert.alert('오류', errorMessage);
-    }
-  };
-
-  const handleSaveNickname = async () => {
-    if (!user || !nickname.trim() || nickname.trim() === (profile?.username ?? '')) return;
-    setNicknameSaving(true);
-    try {
-      await updateUserProfile(user.id, { username: nickname.trim() });
-      await refreshProfile();
-    } catch (error: unknown) {
-      const msg = error instanceof Error ? error.message : '닉네임 저장에 실패했습니다.';
-      Alert.alert('오류', msg);
-    } finally {
-      setNicknameSaving(false);
     }
   };
 
@@ -195,7 +214,6 @@ export default function ProfileScreen() {
   const completedDays = progressList.length;
   const totalDays = 50;
   const isDayComplete = completedDays >= totalDays;
-  const hasNicknameChanges = nickname.trim() !== (profile?.username ?? '');
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -206,38 +224,17 @@ export default function ProfileScreen() {
         {/* 프로필 섹션 */}
         <View style={[styles.profileCard, { backgroundColor: colors.surface }]}>
           <View style={styles.avatarSection}>
-            {profile?.avatar_url ? (
-              <Image source={{ uri: profile.avatar_url }} style={styles.avatar} />
+            {displayAvatar ? (
+              <Image source={{ uri: displayAvatar }} style={styles.avatar} />
             ) : (
               <View style={[styles.avatarPlaceholder, { backgroundColor: colors.primaryLight }]}>
                 <User size={40} color={colors.primary} />
               </View>
             )}
             <View style={styles.profileInfo}>
-              <View style={styles.nicknameRow}>
-                <TextInput
-                  style={[styles.nicknameInput, { color: colors.text, borderColor: colors.border }]}
-                  value={nickname}
-                  onChangeText={setNickname}
-                  placeholder="닉네임"
-                  placeholderTextColor={colors.textSecondary}
-                  maxLength={20}
-                  editable={!nicknameSaving}
-                />
-                {hasNicknameChanges && (
-                  <TouchableOpacity
-                    onPress={handleSaveNickname}
-                    disabled={nicknameSaving || !nickname.trim()}
-                    style={[styles.nicknameSaveBtn, { backgroundColor: colors.primary }]}
-                  >
-                    {nicknameSaving ? (
-                      <ActivityIndicator size="small" color="#fff" />
-                    ) : (
-                      <Check size={16} color="#fff" />
-                    )}
-                  </TouchableOpacity>
-                )}
-              </View>
+              <Text style={[styles.displayName, { color: colors.text }]}>
+                {displayNickname || '사용자'}
+              </Text>
               <Text style={[styles.email, { color: colors.textSecondary }]}>
                 {user.email ?? ''}
               </Text>
@@ -414,30 +411,10 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
   },
-  nicknameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 4,
-    minWidth: 0,
-  },
-  nicknameInput: {
-    flex: 1,
-    minWidth: 0,
+  displayName: {
     fontSize: 18,
     fontWeight: '700',
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-    borderRadius: 8,
-    borderWidth: 1,
-  },
-  nicknameSaveBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-    justifyContent: 'center',
-    alignItems: 'center',
-    flexShrink: 0,
+    marginBottom: 4,
   },
   email: {
     fontSize: 14,

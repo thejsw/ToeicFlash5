@@ -6,6 +6,7 @@ export default function ProfileLayout() {
 
   return (
     <Stack
+      initialRouteName="index"
       screenOptions={{
         headerShown: false,
         contentStyle: { backgroundColor: colors.background },

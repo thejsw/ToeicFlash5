@@ -61,6 +61,17 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   },
 });
 
+/** Supabase/PostgREST 401 인증 에러 여부 (세션 만료 시 handleSessionError 호출용) */
+export function isAuthError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const e = error as { code?: string; message?: string; status?: number };
+  return (
+    e.status === 401 ||
+    e.code === 'PGRST301' ||
+    (typeof e.message === 'string' && (e.message.includes('401') || e.message.includes('JWT') || e.message.includes('expired')))
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Types (docs/DB_SCHEMA.md 기준)
 // ---------------------------------------------------------------------------
@@ -522,6 +533,7 @@ export async function insertWeeklyQuiz(
 
 export type UserProfile = {
   id: string;
+  address: string | null;
   username: string | null;
   avatar_url: string | null;
   provider: string | null;
@@ -550,6 +562,9 @@ export async function signInWithGoogle(redirectTo?: string) {
     provider: 'google',
     options: {
       redirectTo,
+      queryParams: {
+        prompt: 'select_account', // 로그아웃 후 다른 구글 계정 선택 가능
+      },
     },
   });
   if (error) throw error;
@@ -573,14 +588,32 @@ export async function signOut() {
 }
 
 export async function deleteUserAccount() {
-  const userId = await getCurrentUserId();
-  if (!userId) throw new Error('로그인이 필요합니다.');
-
-  // Call Edge Function to delete user (requires admin privileges)
-  const { data, error } = await supabase.functions.invoke('delete-user', {
-    body: { user_id: userId },
+  console.log('[supabase] deleteUserAccount 진입');
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.user?.id) {
+    console.error('[supabase] deleteUserAccount - session 없음');
+    throw new Error('로그인이 필요합니다.');
+  }
+  console.log('[supabase] fetch start - delete-user Edge Function 호출 직전', {
+    url: `${supabaseUrl}/functions/v1/delete-user`,
+    hasAccessToken: !!session.access_token,
   });
-  if (error) throw error;
+
+  const { data, error } = await supabase.functions.invoke('delete-user', {
+    body: { user_id: session.user.id },
+    headers: {
+      Authorization: `Bearer ${session.access_token}`,
+    },
+  });
+  if (error) {
+    console.error('[supabase] delete-user invoke error:', error);
+    throw error;
+  }
+  if (data?.error) {
+    console.error('[supabase] delete-user data.error:', data.error);
+    throw new Error(data.error);
+  }
+  console.log('[supabase] delete-user 성공');
   return data;
 }
 
@@ -588,11 +621,26 @@ export async function deleteUserAccount() {
 // User Profile Functions
 // ---------------------------------------------------------------------------
 
+const USER_PROFILE_SELECT = 'id, address, username, avatar_url, provider, created_at';
+
 export async function getUserProfile(userId: string): Promise<UserProfile | null> {
   const { data, error } = await supabase
     .from('user_profiles')
-    .select('id, username, avatar_url, provider, created_at')
+    .select(USER_PROFILE_SELECT)
     .eq('id', userId)
+    .maybeSingle();
+  if (error) throw error;
+  return data as UserProfile | null;
+}
+
+/** address(메일 주소)로 프로필 조회 — 유저 판별용 (중복 시 첫 행 반환) */
+export async function getUserProfileByAddress(address: string): Promise<UserProfile | null> {
+  if (!address?.trim()) return null;
+  const { data, error } = await supabase
+    .from('user_profiles')
+    .select(USER_PROFILE_SELECT)
+    .eq('address', address.trim())
+    .limit(1)
     .maybeSingle();
   if (error) throw error;
   return data as UserProfile | null;
@@ -600,7 +648,7 @@ export async function getUserProfile(userId: string): Promise<UserProfile | null
 
 export async function upsertUserProfile(
   userId: string,
-  updates: { username?: string; avatar_url?: string; provider?: string }
+  updates: { address?: string; username?: string; avatar_url?: string; provider?: string }
 ): Promise<UserProfile> {
   const { data, error } = await supabase
     .from('user_profiles')
@@ -608,7 +656,7 @@ export async function upsertUserProfile(
       id: userId,
       ...updates,
     })
-    .select('id, username, avatar_url, provider, created_at')
+    .select(USER_PROFILE_SELECT)
     .single();
   if (error) throw error;
   return data as UserProfile;
@@ -658,6 +706,7 @@ export async function getUserSettings(userId: string): Promise<UserSettings | nu
     .from('user_settings')
     .select('id, user_id, learning_language, notification_enabled, updated_at')
     .eq('user_id', userId)
+    .limit(1)
     .maybeSingle();
   if (error) throw error;
   return data as UserSettings | null;
@@ -673,6 +722,12 @@ export async function ensureUserSettings(userId: string): Promise<UserSettings> 
   });
 }
 
+/** 신규 유저 초기 데이터 생성: user_settings, bookmark_folders(기본 폴더), user_progress는 학습 시 자동 생성 */
+export async function ensureNewUserData(userId: string): Promise<void> {
+  await ensureUserSettings(userId);
+  await ensureDefaultFolder(userId);
+}
+
 export async function upsertUserSettings(
   userId: string,
   updates: { learning_language?: string; notification_enabled?: boolean }
@@ -681,17 +736,17 @@ export async function upsertUserSettings(
   const existing = await getUserSettings(userId);
   
   if (existing) {
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from('user_settings')
       .update({
         ...updates,
         updated_at: new Date().toISOString(),
       })
-      .eq('user_id', userId)
-      .select('id, user_id, learning_language, notification_enabled, updated_at')
-      .single();
+      .eq('user_id', userId);
     if (error) throw error;
-    return data as UserSettings;
+    const updated = await getUserSettings(userId);
+    if (!updated) throw new Error('Failed to fetch updated settings');
+    return updated;
   } else {
     const { data, error } = await supabase
       .from('user_settings')
@@ -763,6 +818,31 @@ export async function getWeeklyQuizAttempts(userId: string): Promise<number[]> {
     .not('week_num', 'is', null);
   if (error) throw error;
   return [...new Set((data ?? []).map((d) => d.week_num as number))].sort((a, b) => a - b);
+}
+
+export type WeeklyQuizItem = {
+  week_num: number;
+  created_at: string | null;
+};
+
+/** DB에 저장된 모든 주차별 모의고사 목록 (최신순) */
+export async function listAvailableWeeklyQuizzes(): Promise<WeeklyQuizItem[]> {
+  const { data, error } = await supabase
+    .from('test_quizzes')
+    .select('week_num, created_at')
+    .eq('type', WEEKLY_MOCK_TYPE)
+    .not('week_num', 'is', null)
+    .order('week_num', { ascending: false });
+  if (error) throw error;
+  const seen = new Set<number>();
+  return (data ?? [])
+    .filter((d) => {
+      const w = d.week_num as number;
+      if (w == null || seen.has(w)) return false;
+      seen.add(w);
+      return true;
+    })
+    .map((d) => ({ week_num: d.week_num as number, created_at: d.created_at ?? null }));
 }
 
 export async function ensureDefaultFolder(userId: string | null): Promise<string> {

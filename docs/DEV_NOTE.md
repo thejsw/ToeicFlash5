@@ -23,7 +23,7 @@
 
 - components  
   - 재사용 가능한 UI 컴포넌트  
-  - AuthProvider.tsx: Supabase 인증 상태, 로그인 시 user_profiles·user_settings 자동 생성
+  - AuthProvider.tsx: Supabase 인증 상태, 로그인 시 address(메일) 기반 신규/기존 유저 판별 후 user_profiles·user_settings 자동 생성
 
 - hooks  
   - 커스텀 React Hooks  
@@ -69,7 +69,7 @@
     - 앱 진입 시 기본 화면  
     - 로그인 시 user_progress 기반 Day 진행도, 비로그인 시 AsyncStorage
   - profile/  
-    - index.tsx: 프로필, 닉네임 인라인 편집, Google 로그인
+    - index.tsx: 프로필 표시, Google 로그인 (닉네임 수정 불가)
     - _layout.tsx: Stack (index, settings)
     - settings.tsx: 콘텐츠 표시 언어(한/일), 푸시 알림, 계정 삭제
   - bookmarks/  
@@ -99,7 +99,7 @@
 - supabase.ts  
   - Supabase DB 연결 설정 및 타입 정의  
   - 인증: signInWithGoogle, signOut, getCurrentUserId  
-  - user_profiles, user_settings(ensureUserSettings), user_progress(upsertUserProgress)  
+  - user_profiles(address 기반 getUserProfileByAddress, ensureProfile), user_settings(ensureUserSettings), user_progress(upsertUserProgress)  
   - uploadAvatar (Supabase Storage avatars 버킷)
 
 - llm.ts  
@@ -112,8 +112,10 @@
 
 ## supabase 폴더 내부 구조
 
-- migrations/sql  
-  - DB 스키마 정의 SQL
+- migrations  
+  - DB 마이그레이션 SQL  
+  - `20250219120000_schedule_weekly_mock_cron.sql`: Mock Exam 매주 월요일 00:30(KST) 자동 생성 cron  
+  - `20250219130000_add_address_to_user_profiles.sql`: user_profiles에 address(메일 주소) 컬럼 추가, address 기반 유저 판별
 
 - functions/generate-quiz  
   - Supabase Edge Function 기반 퀴즈 생성 함수  
@@ -122,14 +124,17 @@
 - functions/generate-weekly-quiz  
   - 주차별 TOEIC Part 5 어휘 10문항 생성 후 **Edge Function에서 Service Role로 DB 직접 insert** (RLS 우회)  
   - **필수 시크릿**: `OPENAI_API_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` (대시보드 → Edge Functions → generate-weekly-quiz → Secrets)  
-  - **serve import**: `https://deno.land/x/supabase_edge_runtime/mod.ts`  
+  - **자동 생성 (cron)**: 매주 월요일 00:30 KST에 pg_cron으로 자동 호출 → 모든 유저 공통 퀴즈  
+  - **cron 설정**: `docs/CRON_SETUP.md` 참고 (Vault 시크릿, pg_cron/pg_net 확장)  
   - **대시보드 테스트**: Request Body `{}` 또는 `{ "weekNum": 2026021 }`  
   - **localhost에서 401**: `npm run deploy:weekly-quiz` 로 재배포 (--no-verify-jwt)
 
 - functions/delete-user  
   - 계정 삭제 Edge Function (Service Role)  
   - bookmarks → bookmark_folders → user_progress → user_settings → user_profiles → auth 사용자 순 삭제  
-  - Authorization 헤더로 본인 확인 후 삭제
+  - Authorization 헤더로 본인 확인 후 삭제  
+  - **CORS**: localhost 등 브라우저 호출 시 preflight(OPTIONS) 지원 (Access-Control-Allow-Methods 등)  
+  - **배포**: `npm run deploy:delete-user`
 
 ---
 

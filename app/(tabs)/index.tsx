@@ -2,7 +2,7 @@ import React, { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { supabase } from '@/lib/supabase';
-import { getUserProgressList } from '@/lib/supabase';
+import { getUserProgressList, isAuthError } from '@/lib/supabase';
 import AdBanner from '@/components/AdBanner';
 import { BookOpen, Moon, Sun, Check, GraduationCap } from 'lucide-react-native';
 import { useTheme } from '@/lib/theme';
@@ -14,7 +14,7 @@ const TOTAL_DAYS = 50;
 export default function HomeScreen() {
   const router = useRouter();
   const { colors, theme, toggleTheme } = useTheme();
-  const { user } = useAuth();
+  const { user, handleSessionError } = useAuth();
   const [loading, setLoading] = useState(true);
   const [wordCounts, setWordCounts] = useState<Record<number, number>>({});
   const [progressData, setProgressData] = useState<Record<number, number>>({});
@@ -93,8 +93,11 @@ export default function HomeScreen() {
       setQuizCompleted(quizCompletedData);
     } catch (error) {
       console.error('Error loading progress data:', error);
+      if (isAuthError(error)) {
+        await handleSessionError();
+      }
     }
-  }, [user]);
+  }, [user, handleSessionError]);
 
   useFocusEffect(
     React.useCallback(() => {

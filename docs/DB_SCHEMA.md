@@ -113,6 +113,7 @@
 
 ### user_profiles — 사용자 프로필
 - id: uuid (PK) — 사용자 ID
+- address: text — 메일 주소 (유저 판별용, UNIQUE)
 - username: text — 사용자명
 - avatar_url: text — 프로필 이미지
 - provider: text — 인증 제공자

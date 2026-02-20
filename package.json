@@ -9,7 +9,8 @@
     "lint": "expo lint",
     "typecheck": "tsc --noEmit",
     "deploy:weekly-quiz": "supabase functions deploy generate-weekly-quiz --no-verify-jwt",
-    "deploy:quiz": "supabase functions deploy generate-quiz --no-verify-jwt"
+    "deploy:quiz": "supabase functions deploy generate-quiz --no-verify-jwt",
+    "deploy:delete-user": "supabase functions deploy delete-user --no-verify-jwt"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.2",

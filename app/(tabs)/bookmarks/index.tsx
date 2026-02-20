@@ -13,14 +13,15 @@ import {
   Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useAuth } from '@/hooks/useAuth';
 import {
-  getCurrentUserId,
   listFolders,
   createFolder,
   updateFolder,
   deleteFolder,
   ensureDefaultFolder,
   migrateNullFolderBookmarks,
+  isAuthError,
   DEFAULT_FOLDER_NAME,
   BookmarkFolder,
 } from '@/lib/supabase';
@@ -31,8 +32,9 @@ import FolderSelectSheet from './_components/FolderSelectSheet';
 
 export default function BookmarksIndexScreen() {
   const router = useRouter();
+  const { user, handleSessionError } = useAuth();
+  const userId = user?.id ?? null;
   const { colors, theme, toggleTheme } = useTheme();
-  const [userId, setUserId] = useState<string | null>(null);
   const [folders, setFolders] = useState<BookmarkFolder[]>([]);
   const [loading, setLoading] = useState(true);
   const [optionsSheetVisible, setOptionsSheetVisible] = useState(false);
@@ -57,18 +59,25 @@ export default function BookmarksIndexScreen() {
 
   useEffect(() => {
     let mounted = true;
+    setLoading(true);
     (async () => {
-      const uid = await getCurrentUserId();
-      if (!mounted) return;
-      setUserId(uid);
-      await loadFolders(uid);
-      if (!mounted) return;
-      setLoading(false);
+      try {
+        await loadFolders(userId);
+        if (!mounted) return;
+        setLoading(false);
+      } catch (e) {
+        console.error('Failed to load bookmark folders:', e);
+        if (isAuthError(e)) {
+          await handleSessionError();
+        }
+        if (!mounted) return;
+        setLoading(false);
+      }
     })();
     return () => {
       mounted = false;
     };
-  }, [loadFolders]);
+  }, [userId, loadFolders, handleSessionError]);
 
   const handleCreateFolder = async () => {
     if (!newFolderName.trim()) return;
