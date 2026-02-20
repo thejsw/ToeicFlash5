@@ -23,14 +23,15 @@ import { useTheme } from '@/lib/theme';
 type Props = {
   visible: boolean;
   userId: string | null;
-  onSelectFolder: (folderId: string) => void;
+  /** 선택한 폴더 ID 배열로 호출 (여러 폴더 선택 가능) */
+  onSelectFolders: (folderIds: string[]) => void;
   onClose: () => void;
 };
 
 export default function BookmarkFolderPicker({
   visible,
   userId,
-  onSelectFolder,
+  onSelectFolders,
   onClose,
 }: Props) {
   const { colors } = useTheme();
@@ -39,7 +40,7 @@ export default function BookmarkFolderPicker({
   const [creating, setCreating] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
   const [showCreateInput, setShowCreateInput] = useState(false);
-  const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
+  const [selectedFolderIds, setSelectedFolderIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (!visible) return;
@@ -49,7 +50,7 @@ export default function BookmarkFolderPicker({
       setCreating(false);
       setNewFolderName('');
       setShowCreateInput(false);
-      setSelectedFolderId(null);
+      setSelectedFolderIds(new Set());
       const uid = userId ?? null;
       let list = await listFolders(uid);
       if (list.length === 0) {
@@ -65,10 +66,19 @@ export default function BookmarkFolderPicker({
   }, [visible, userId]);
 
   const handleConfirmSave = () => {
-    if (selectedFolderId) {
-      onSelectFolder(selectedFolderId);
+    if (selectedFolderIds.size > 0) {
+      onSelectFolders(Array.from(selectedFolderIds));
       onClose();
     }
+  };
+
+  const toggleFolder = (folderId: string) => {
+    setSelectedFolderIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(folderId)) next.delete(folderId);
+      else next.add(folderId);
+      return next;
+    });
   };
 
   const handleCreateFolder = async () => {
@@ -81,7 +91,7 @@ export default function BookmarkFolderPicker({
       setFolders((prev) => [...prev, folder]);
       setNewFolderName('');
       setShowCreateInput(false);
-      setSelectedFolderId(folder.id);
+      setSelectedFolderIds((prev) => new Set([...prev, folder.id]));
     } finally {
       setCreating(false);
     }
@@ -117,7 +127,7 @@ export default function BookmarkFolderPicker({
                 keyExtractor={(item) => item.id}
                 style={styles.list}
                 renderItem={({ item }) => {
-                  const isSelected = selectedFolderId === item.id;
+                  const isSelected = selectedFolderIds.has(item.id);
                   return (
                     <TouchableOpacity
                       style={[
@@ -125,7 +135,7 @@ export default function BookmarkFolderPicker({
                         { borderBottomColor: colors.border },
                         isSelected && { borderWidth: 2, borderColor: colors.primary, borderRadius: 8, marginBottom: 2 },
                       ]}
-                      onPress={() => setSelectedFolderId(item.id)}>
+                      onPress={() => toggleFolder(item.id)}>
                       <Text style={[styles.rowText, { color: colors.text }]}>{item.name}</Text>
                       {isSelected && (
                         <Check size={22} color={colors.primary} style={styles.rowCheck} />
@@ -140,12 +150,14 @@ export default function BookmarkFolderPicker({
               <TouchableOpacity
                 style={[
                   styles.saveBtn,
-                  { backgroundColor: selectedFolderId ? colors.primary : colors.border },
+                  { backgroundColor: selectedFolderIds.size > 0 ? colors.primary : colors.border },
                 ]}
                 onPress={handleConfirmSave}
-                disabled={!selectedFolderId}>
-                <Text style={[styles.saveBtnText, { color: selectedFolderId ? '#fff' : colors.textSecondary }]}>
-                  선택한 북마크 폴더에 저장
+                disabled={selectedFolderIds.size === 0}>
+                <Text style={[styles.saveBtnText, { color: selectedFolderIds.size > 0 ? '#fff' : colors.textSecondary }]}>
+                  {selectedFolderIds.size > 0
+                    ? `선택한 폴더 ${selectedFolderIds.size}개에 저장`
+                    : '폴더를 선택하세요'}
                 </Text>
               </TouchableOpacity>
             )}

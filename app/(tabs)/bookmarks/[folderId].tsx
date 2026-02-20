@@ -24,7 +24,6 @@ import {
   Bookmark,
 } from '@/lib/supabase';
 import FlipCard from '@/components/FlipCard';
-import AdBanner from '@/components/AdBanner';
 import MoveBookmarkSheet from './_components/MoveBookmarkSheet';
 import { ChevronLeft, ChevronRight, Star, Moon, Sun, FolderInput } from 'lucide-react-native';
 import { useTheme } from '@/lib/theme';
@@ -279,7 +278,6 @@ export default function FolderBookmarksScreen() {
         onSelect={handleMoveToFolder}
         onClose={() => setMoveSheetVisible(false)}
       />
-      <AdBanner />
     </View>
   );
 }

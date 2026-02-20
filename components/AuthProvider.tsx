@@ -213,16 +213,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setState((prev) => ({ ...prev, loading: true }));
     try {
       await authSignOut();
-      setState((prev) => ({
-        ...prev,
-        session: null,
-        user: null,
-        profile: null,
-        loading: false,
-      }));
-    } catch (error) {
+    } finally {
       setState((prev) => ({ ...prev, loading: false }));
-      throw error;
     }
   }, []);
 
