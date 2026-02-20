@@ -322,10 +322,10 @@ export async function fetchQuizByDay(dayNum: number): Promise<DayQuizQuestion[]>
 
 const WEEKLY_MOCK_TYPE = 'weekly_mock_light';
 
-/** Week 퀴즈 존재 여부 및 quiz id (test_quizzes, 동일 week_num 중복 생성 방지용) */
+/** Week 퀴즈 존재 여부 및 quiz id (quizzes, 동일 week_num 중복 생성 방지용) */
 export async function getWeeklyQuizId(weekNum: number): Promise<string | null> {
   const { data, error } = await supabase
-    .from('test_quizzes')
+    .from('quizzes')
     .select('id')
     .eq('type', WEEKLY_MOCK_TYPE)
     .eq('week_num', weekNum)
@@ -340,10 +340,10 @@ export type FetchQuizByWeekResult = {
   created_at: string | null;
 };
 
-/** Week 퀴즈 문항 조회 (test_* 테이블, created_at 포함) */
+/** Week 퀴즈 문항 조회 (quizzes, quiz_questions 등, created_at 포함) */
 export async function fetchQuizByWeek(weekNum: number): Promise<FetchQuizByWeekResult> {
   const { data: quizData, error: quizError } = await supabase
-    .from('test_quizzes')
+    .from('quizzes')
     .select('id, created_at')
     .eq('type', WEEKLY_MOCK_TYPE)
     .eq('week_num', weekNum)
@@ -357,7 +357,7 @@ export async function fetchQuizByWeek(weekNum: number): Promise<FetchQuizByWeekR
   const created_at = quizData.created_at ?? null;
 
   const { data: questionsData, error: questionsError } = await supabase
-    .from('test_quiz_questions')
+    .from('quiz_questions')
     .select('id, word_id, quiz_id, question_text, order_index')
     .eq('quiz_id', quizId)
     .order('order_index');
@@ -368,19 +368,17 @@ export async function fetchQuizByWeek(weekNum: number): Promise<FetchQuizByWeekR
 
   const questionIds = questions.map((q) => q.id);
   const { data: choicesData, error: choicesError } = await supabase
-    .from('test_quiz_choices')
+    .from('quiz_choices')
     .select('id, question_id, choice_key, choice_text, is_correct')
-    .in('question_id', questionIds)
-    .order('order_index');
+    .in('question_id', questionIds);
 
   if (choicesError) throw choicesError;
   const choices = (choicesData ?? []) as QuizChoiceRow[];
 
   const { data: explanationsData, error: explanationsError } = await supabase
-    .from('test_quiz_explanations')
+    .from('quiz_explanations')
     .select('question_id, explanation, language')
-    .in('question_id', questionIds)
-    .order('order_index');
+    .in('question_id', questionIds);
 
   if (explanationsError) throw explanationsError;
   const explanations = (explanationsData ?? []) as QuizExplanationRow[];
@@ -449,7 +447,7 @@ export async function fetchQuizByWeek(weekNum: number): Promise<FetchQuizByWeekR
   return { questions: result, created_at };
 }
 
-/** 주차 퀴즈 저장 시 word_id placeholder (test_quiz_questions 등, Edge Function에서 사용) */
+/** 주차 퀴즈 저장 시 word_id placeholder (quiz_questions 등, Edge Function에서 사용) */
 export async function getPlaceholderWordId(): Promise<string> {
   const { data, error } = await supabase
     .from('words')
@@ -809,10 +807,10 @@ export async function upsertUserProgress(
   }
 }
 
-/** test_quizzes에서 주차별 모의고사가 존재하는 week_num 목록 반환 (응시 가능한 주차 수) */
+/** quizzes에서 주차별 모의고사가 존재하는 week_num 목록 반환 (응시 가능한 주차 수) */
 export async function getWeeklyQuizAttempts(userId: string): Promise<number[]> {
   const { data, error } = await supabase
-    .from('test_quizzes')
+    .from('quizzes')
     .select('week_num')
     .eq('type', 'weekly_mock_light')
     .not('week_num', 'is', null);
@@ -828,7 +826,7 @@ export type WeeklyQuizItem = {
 /** DB에 저장된 모든 주차별 모의고사 목록 (최신순) */
 export async function listAvailableWeeklyQuizzes(): Promise<WeeklyQuizItem[]> {
   const { data, error } = await supabase
-    .from('test_quizzes')
+    .from('quizzes')
     .select('week_num, created_at')
     .eq('type', WEEKLY_MOCK_TYPE)
     .not('week_num', 'is', null)

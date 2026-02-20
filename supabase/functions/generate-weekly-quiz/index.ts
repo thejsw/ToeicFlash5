@@ -78,7 +78,7 @@ serve(async (req: Request) => {
     }
 
     const { data: existing } = await supabase
-      .from('test_quizzes')
+      .from('quizzes')
       .select('id')
       .eq('type', WEEKLY_MOCK_TYPE)
       .eq('week_num', weekNum)
@@ -196,7 +196,7 @@ Return only valid JSON.`;
 
     const createdAt = new Date().toISOString();
     const { data: quizRow, error: quizErr } = await supabase
-      .from('test_quizzes')
+      .from('quizzes')
       .insert({
         type: WEEKLY_MOCK_TYPE,
         week_num: weekNum,
@@ -205,7 +205,7 @@ Return only valid JSON.`;
       .select('id, created_at')
       .single();
     if (quizErr || !quizRow?.id) {
-      throw new Error(quizErr?.message ?? 'test_quizzes insert failed');
+      throw new Error(quizErr?.message ?? 'quizzes insert failed');
     }
     const quizId = quizRow.id;
 
@@ -213,7 +213,7 @@ Return only valid JSON.`;
       const q = validatedQuestions[i];
       const questionOrderIndex = ORDER_INDEX_BASE + i;
       const { data: questionRow, error: qErr } = await supabase
-        .from('test_quiz_questions')
+        .from('quiz_questions')
         .insert({
           word_id: placeholderWordId,
           quiz_id: quizId,
@@ -223,7 +223,7 @@ Return only valid JSON.`;
         .select('id')
         .single();
       if (qErr || !questionRow?.id) {
-        throw new Error(qErr?.message ?? 'test_quiz_questions insert failed');
+        throw new Error(qErr?.message ?? 'quiz_questions insert failed');
       }
       const questionId = questionRow.id;
 
@@ -232,22 +232,19 @@ Return only valid JSON.`;
       for (let j = 0; j < choices.length; j++) {
         const choiceText = String(choices[j] ?? '').trim();
         if (!choiceText) continue;
-        const choiceOrderIndex = ORDER_INDEX_BASE + i * 4 + j;
-        const { error: cErr } = await supabase.from('test_quiz_choices').insert({
+        const { error: cErr } = await supabase.from('quiz_choices').insert({
           question_id: questionId,
           choice_key: ORDER_KEYS[j] ?? String.fromCharCode(65 + j),
           choice_text: choiceText,
           is_correct: choiceText === answerText,
-          order_index: choiceOrderIndex,
         });
         if (cErr) throw new Error(cErr.message);
       }
 
-      const { error: exErr } = await supabase.from('test_quiz_explanations').insert({
+      const { error: exErr } = await supabase.from('quiz_explanations').insert({
         question_id: questionId,
         language: 'ko',
         explanation: q.explanation ?? '',
-        order_index: questionOrderIndex,
       });
       if (exErr) throw new Error(exErr.message);
     }
