@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import Constants from 'expo-constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react-native';
 import 'react-native-url-polyfill/auto';
 
 const GUEST_FOLDERS_KEY = 'bookmark_guest_folders';
@@ -51,7 +52,25 @@ if (!supabaseUrl || !supabaseAnonKey) {
   );
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    storage: Platform.OS === 'web' ? undefined : AsyncStorage,
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: Platform.OS === 'web',
+  },
+});
+
+/** Supabase/PostgREST 401 인증 에러 여부 (세션 만료 시 handleSessionError 호출용) */
+export function isAuthError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const e = error as { code?: string; message?: string; status?: number };
+  return (
+    e.status === 401 ||
+    e.code === 'PGRST301' ||
+    (typeof e.message === 'string' && (e.message.includes('401') || e.message.includes('JWT') || e.message.includes('expired')))
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Types (docs/DB_SCHEMA.md 기준)
@@ -196,11 +215,13 @@ export type DayQuizQuestion = {
   explanation: string;
 };
 
+/** Day 퀴즈 전용: week_num이 null인 퀴즈만 조회 (기존 로직 유지) */
 export async function fetchQuizByDay(dayNum: number): Promise<DayQuizQuestion[]> {
   const { data: quizData, error: quizError } = await supabase
     .from('quizzes')
     .select('id')
     .eq('day_num', dayNum)
+    .is('week_num', null)
     .limit(1)
     .maybeSingle();
 
@@ -299,9 +320,527 @@ export async function fetchQuizByDay(dayNum: number): Promise<DayQuizQuestion[]>
   });
 }
 
+const WEEKLY_MOCK_TYPE = 'weekly_mock_light';
+
+/** Week 퀴즈 존재 여부 및 quiz id (quizzes, 동일 week_num 중복 생성 방지용) */
+export async function getWeeklyQuizId(weekNum: number): Promise<string | null> {
+  const { data, error } = await supabase
+    .from('quizzes')
+    .select('id')
+    .eq('type', WEEKLY_MOCK_TYPE)
+    .eq('week_num', weekNum)
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  return data?.id ?? null;
+}
+
+export type FetchQuizByWeekResult = {
+  questions: DayQuizQuestion[];
+  created_at: string | null;
+};
+
+/** Week 퀴즈 문항 조회 (quizzes, quiz_questions 등, created_at 포함) */
+export async function fetchQuizByWeek(weekNum: number): Promise<FetchQuizByWeekResult> {
+  const { data: quizData, error: quizError } = await supabase
+    .from('quizzes')
+    .select('id, created_at')
+    .eq('type', WEEKLY_MOCK_TYPE)
+    .eq('week_num', weekNum)
+    .limit(1)
+    .maybeSingle();
+
+  if (quizError) throw quizError;
+  if (!quizData?.id) return { questions: [], created_at: null };
+
+  const quizId = quizData.id;
+  const created_at = quizData.created_at ?? null;
+
+  const { data: questionsData, error: questionsError } = await supabase
+    .from('quiz_questions')
+    .select('id, word_id, quiz_id, question_text, order_index')
+    .eq('quiz_id', quizId)
+    .order('order_index');
+
+  if (questionsError) throw questionsError;
+  const questions = (questionsData ?? []) as QuizQuestionRow[];
+  if (questions.length === 0) return { questions: [], created_at };
+
+  const questionIds = questions.map((q) => q.id);
+  const { data: choicesData, error: choicesError } = await supabase
+    .from('quiz_choices')
+    .select('id, question_id, choice_key, choice_text, is_correct')
+    .in('question_id', questionIds);
+
+  if (choicesError) throw choicesError;
+  const choices = (choicesData ?? []) as QuizChoiceRow[];
+
+  const { data: explanationsData, error: explanationsError } = await supabase
+    .from('quiz_explanations')
+    .select('question_id, explanation, language')
+    .in('question_id', questionIds);
+
+  if (explanationsError) throw explanationsError;
+  const explanations = (explanationsData ?? []) as QuizExplanationRow[];
+
+  const choicesByQuestion = new Map<string, QuizChoiceRow[]>();
+  for (const c of choices) {
+    if (!c.question_id) continue;
+    const list = choicesByQuestion.get(c.question_id) ?? [];
+    list.push(c);
+    choicesByQuestion.set(c.question_id, list);
+  }
+
+  const explanationByQuestion = new Map<string, string>();
+  const explanationLangByQuestion = new Map<string, boolean>();
+  for (const e of explanations) {
+    if (!e.question_id) continue;
+    const isKo = (e.language ?? '').toLowerCase().startsWith('ko');
+    const existingIsKo = explanationLangByQuestion.get(e.question_id);
+    if (existingIsKo === undefined || (isKo && !existingIsKo)) {
+      explanationByQuestion.set(e.question_id, e.explanation ?? '');
+      explanationLangByQuestion.set(e.question_id, isKo);
+    }
+  }
+
+  function fixTextEncoding(str: string): string {
+    return str
+      .replace(/\uFFFD/g, "'")
+      .replace(/â€™|Ã¢â‚¬â„¢|Ã¢â‚¬™|â€˜/g, "'")
+      .replace(/â€œ|â€|â€\u009d/g, '"');
+  }
+
+  const orderKeys = ['A', 'B', 'C', 'D', 'a', 'b', 'c', 'd'];
+
+  const result = questions.map((q) => {
+    const rawChoices = choicesByQuestion.get(q.id) ?? [];
+    const choiceList = rawChoices
+      .map((c) => ({
+        choice_key: c.choice_key ?? '',
+        choice_text: fixTextEncoding((c.choice_text ?? '').trim()),
+        is_correct: c.is_correct === true,
+      }))
+      .filter((c) => c.choice_text);
+
+    const sorted = [...choiceList].sort((a, b) => {
+      const ai = orderKeys.indexOf(a.choice_key);
+      const bi = orderKeys.indexOf(b.choice_key);
+      if (ai >= 0 && bi >= 0) return ai - bi;
+      if (ai >= 0) return -1;
+      if (bi >= 0) return 1;
+      return a.choice_key.localeCompare(b.choice_key);
+    });
+
+    const correctChoice = sorted.find((c) => c.is_correct);
+    const answer = correctChoice?.choice_text ?? (sorted[0]?.choice_text ?? '');
+    const explanation = fixTextEncoding(explanationByQuestion.get(q.id) ?? '');
+
+    return {
+      id: q.id,
+      question_text: fixTextEncoding((q.question_text ?? '').trim()),
+      choices: sorted.map((c) => ({ choice_key: c.choice_key, choice_text: c.choice_text })),
+      answer,
+      explanation,
+    };
+  });
+
+  return { questions: result, created_at };
+}
+
+/** 주차 퀴즈 저장 시 word_id placeholder (quiz_questions 등, Edge Function에서 사용) */
+export async function getPlaceholderWordId(): Promise<string> {
+  const { data, error } = await supabase
+    .from('words')
+    .select('id')
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data?.id) throw new Error('words 테이블에 단어가 없어 주차 퀴즈를 저장할 수 없습니다.');
+  return data.id;
+}
+
+export type WeeklyQuizQuestionInput = {
+  question: string;
+  choices: string[];
+  answer: string;
+  explanation: string;
+};
+
+/** 주차 퀴즈 1건 DB 저장 (동일 week_num 중복 호출 금지 — 호출 전 getWeeklyQuizId로 확인) */
+export async function insertWeeklyQuiz(
+  weekNum: number,
+  questions: WeeklyQuizQuestionInput[]
+): Promise<string> {
+  const placeholderWordId = await getPlaceholderWordId();
+
+  const { data: quizRow, error: quizError } = await supabase
+    .from('quizzes')
+    .insert({
+      type: WEEKLY_MOCK_TYPE,
+      day_num: null,
+      week_num: weekNum,
+    })
+    .select('id')
+    .single();
+
+  if (quizError) throw quizError;
+  const quizId = quizRow.id;
+
+  const orderKeys = ['A', 'B', 'C', 'D'];
+  for (let i = 0; i < questions.length; i++) {
+    const q = questions[i];
+    const { data: questionRow, error: qErr } = await supabase
+      .from('quiz_questions')
+      .insert({
+        word_id: placeholderWordId,
+        quiz_id: quizId,
+        question_text: q.question,
+        order_index: i,
+      })
+      .select('id')
+      .single();
+    if (qErr) throw qErr;
+    const questionId = questionRow.id;
+
+    const choices = Array.isArray(q.choices) ? q.choices : [];
+    const answerText = (q.answer ?? '').trim();
+    for (let j = 0; j < choices.length; j++) {
+      const choiceText = (choices[j] ?? '').trim();
+      if (!choiceText) continue;
+      await supabase.from('quiz_choices').insert({
+        question_id: questionId,
+        choice_key: orderKeys[j] ?? String.fromCharCode(65 + j),
+        choice_text: choiceText,
+        is_correct: choiceText === answerText,
+      });
+    }
+
+    await supabase.from('quiz_explanations').insert({
+      question_id: questionId,
+      language: 'ko',
+      explanation: q.explanation ?? '',
+    });
+  }
+
+  return quizId;
+}
+
+// ---------------------------------------------------------------------------
+// Auth Types
+// ---------------------------------------------------------------------------
+
+export type UserProfile = {
+  id: string;
+  address: string | null;
+  username: string | null;
+  avatar_url: string | null;
+  provider: string | null;
+  created_at: string;
+};
+
+export type UserSettings = {
+  id: string;
+  user_id: string;
+  learning_language: string;
+  notification_enabled: boolean;
+  updated_at: string;
+};
+
+// ---------------------------------------------------------------------------
+// Auth Functions
+// ---------------------------------------------------------------------------
+
 export async function getCurrentUserId(): Promise<string | null> {
   const { data: { session } } = await supabase.auth.getSession();
   return session?.user?.id ?? null;
+}
+
+export async function signInWithGoogle(redirectTo?: string) {
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider: 'google',
+    options: {
+      redirectTo,
+      queryParams: {
+        prompt: 'select_account', // 로그아웃 후 다른 구글 계정 선택 가능
+      },
+    },
+  });
+  if (error) throw error;
+  return data;
+}
+
+export async function signInWithMagicLink(email: string, redirectTo?: string) {
+  const { data, error } = await supabase.auth.signInWithOtp({
+    email,
+    options: {
+      emailRedirectTo: redirectTo,
+    },
+  });
+  if (error) throw error;
+  return data;
+}
+
+export async function signOut() {
+  const { error } = await supabase.auth.signOut();
+  if (error) throw error;
+}
+
+export async function deleteUserAccount() {
+  console.log('[supabase] deleteUserAccount 진입');
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.user?.id) {
+    console.error('[supabase] deleteUserAccount - session 없음');
+    throw new Error('로그인이 필요합니다.');
+  }
+  console.log('[supabase] fetch start - delete-user Edge Function 호출 직전', {
+    url: `${supabaseUrl}/functions/v1/delete-user`,
+    hasAccessToken: !!session.access_token,
+  });
+
+  const { data, error } = await supabase.functions.invoke('delete-user', {
+    body: { user_id: session.user.id },
+    headers: {
+      Authorization: `Bearer ${session.access_token}`,
+    },
+  });
+  if (error) {
+    console.error('[supabase] delete-user invoke error:', error);
+    throw error;
+  }
+  if (data?.error) {
+    console.error('[supabase] delete-user data.error:', data.error);
+    throw new Error(data.error);
+  }
+  console.log('[supabase] delete-user 성공');
+  return data;
+}
+
+// ---------------------------------------------------------------------------
+// User Profile Functions
+// ---------------------------------------------------------------------------
+
+const USER_PROFILE_SELECT = 'id, address, username, avatar_url, provider, created_at';
+
+export async function getUserProfile(userId: string): Promise<UserProfile | null> {
+  const { data, error } = await supabase
+    .from('user_profiles')
+    .select(USER_PROFILE_SELECT)
+    .eq('id', userId)
+    .maybeSingle();
+  if (error) throw error;
+  return data as UserProfile | null;
+}
+
+/** address(메일 주소)로 프로필 조회 — 유저 판별용 (중복 시 첫 행 반환) */
+export async function getUserProfileByAddress(address: string): Promise<UserProfile | null> {
+  if (!address?.trim()) return null;
+  const { data, error } = await supabase
+    .from('user_profiles')
+    .select(USER_PROFILE_SELECT)
+    .eq('address', address.trim())
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  return data as UserProfile | null;
+}
+
+export async function upsertUserProfile(
+  userId: string,
+  updates: { address?: string; username?: string; avatar_url?: string; provider?: string }
+): Promise<UserProfile> {
+  const { data, error } = await supabase
+    .from('user_profiles')
+    .upsert({
+      id: userId,
+      ...updates,
+    })
+    .select(USER_PROFILE_SELECT)
+    .single();
+  if (error) throw error;
+  return data as UserProfile;
+}
+
+export async function updateUserProfile(
+  userId: string,
+  updates: { username?: string; avatar_url?: string }
+): Promise<void> {
+  const { error } = await supabase
+    .from('user_profiles')
+    .update(updates)
+    .eq('id', userId);
+  if (error) throw error;
+}
+
+const AVATARS_BUCKET = 'avatars';
+
+/** 프로필 이미지를 Supabase Storage에 업로드하고 public URL 반환
+ * Supabase 대시보드에서 'avatars' 버킷을 생성하고 public 접근을 허용해주세요.
+ */
+export async function uploadAvatar(userId: string, uri: string): Promise<string> {
+  const fileName = `${userId}/${Date.now()}.jpg`;
+
+  const response = await fetch(uri);
+  const blob = await response.blob();
+
+  const { error: uploadError } = await supabase.storage
+    .from(AVATARS_BUCKET)
+    .upload(fileName, blob, {
+      contentType: blob.type || 'image/jpeg',
+      upsert: true,
+    });
+
+  if (uploadError) throw uploadError;
+
+  const { data } = supabase.storage.from(AVATARS_BUCKET).getPublicUrl(fileName);
+  return data.publicUrl;
+}
+
+// ---------------------------------------------------------------------------
+// User Settings Functions
+// ---------------------------------------------------------------------------
+
+export async function getUserSettings(userId: string): Promise<UserSettings | null> {
+  const { data, error } = await supabase
+    .from('user_settings')
+    .select('id, user_id, learning_language, notification_enabled, updated_at')
+    .eq('user_id', userId)
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  return data as UserSettings | null;
+}
+
+/** 로그인 시 user_settings가 없으면 기본값으로 생성 */
+export async function ensureUserSettings(userId: string): Promise<UserSettings> {
+  const existing = await getUserSettings(userId);
+  if (existing) return existing;
+  return upsertUserSettings(userId, {
+    learning_language: 'ko',
+    notification_enabled: true,
+  });
+}
+
+/** 신규 유저 초기 데이터 생성: user_settings, bookmark_folders(기본 폴더), user_progress는 학습 시 자동 생성 */
+export async function ensureNewUserData(userId: string): Promise<void> {
+  await ensureUserSettings(userId);
+  await ensureDefaultFolder(userId);
+}
+
+export async function upsertUserSettings(
+  userId: string,
+  updates: { learning_language?: string; notification_enabled?: boolean }
+): Promise<UserSettings> {
+  // First check if settings exist
+  const existing = await getUserSettings(userId);
+  
+  if (existing) {
+    const { error } = await supabase
+      .from('user_settings')
+      .update({
+        ...updates,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('user_id', userId);
+    if (error) throw error;
+    const updated = await getUserSettings(userId);
+    if (!updated) throw new Error('Failed to fetch updated settings');
+    return updated;
+  } else {
+    const { data, error } = await supabase
+      .from('user_settings')
+      .insert({
+        user_id: userId,
+        learning_language: updates.learning_language ?? 'ko',
+        notification_enabled: updates.notification_enabled ?? true,
+      })
+      .select('id, user_id, learning_language, notification_enabled, updated_at')
+      .single();
+    if (error) throw error;
+    return data as UserSettings;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// User Progress Functions
+// ---------------------------------------------------------------------------
+
+export async function getUserProgressList(userId: string): Promise<UserProgress[]> {
+  const { data, error } = await supabase
+    .from('user_progress')
+    .select('id, user_id, day, last_card_index, updated_at')
+    .eq('user_id', userId)
+    .order('day');
+  if (error) throw error;
+  return (data ?? []) as UserProgress[];
+}
+
+/** Day 학습/퀴즈 완료 시 user_progress에 저장 (로그인 사용자만) */
+export async function upsertUserProgress(
+  userId: string,
+  day: number,
+  lastCardIndex: number
+): Promise<void> {
+  const { data: existing } = await supabase
+    .from('user_progress')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('day', day)
+    .maybeSingle();
+
+  if (existing?.id) {
+    const { error } = await supabase
+      .from('user_progress')
+      .update({
+        last_card_index: lastCardIndex,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('user_id', userId)
+      .eq('day', day);
+    if (error) throw error;
+  } else {
+    const { error } = await supabase.from('user_progress').insert({
+      user_id: userId,
+      day,
+      last_card_index: lastCardIndex,
+    });
+    if (error) throw error;
+  }
+}
+
+/** quizzes에서 주차별 모의고사가 존재하는 week_num 목록 반환 (응시 가능한 주차 수) */
+export async function getWeeklyQuizAttempts(userId: string): Promise<number[]> {
+  const { data, error } = await supabase
+    .from('quizzes')
+    .select('week_num')
+    .eq('type', 'weekly_mock_light')
+    .not('week_num', 'is', null);
+  if (error) throw error;
+  return [...new Set((data ?? []).map((d) => d.week_num as number))].sort((a, b) => a - b);
+}
+
+export type WeeklyQuizItem = {
+  week_num: number;
+  created_at: string | null;
+};
+
+/** DB에 저장된 모든 주차별 모의고사 목록 (최신순) */
+export async function listAvailableWeeklyQuizzes(): Promise<WeeklyQuizItem[]> {
+  const { data, error } = await supabase
+    .from('quizzes')
+    .select('week_num, created_at')
+    .eq('type', WEEKLY_MOCK_TYPE)
+    .not('week_num', 'is', null)
+    .order('week_num', { ascending: false });
+  if (error) throw error;
+  const seen = new Set<number>();
+  return (data ?? [])
+    .filter((d) => {
+      const w = d.week_num as number;
+      if (w == null || seen.has(w)) return false;
+      seen.add(w);
+      return true;
+    })
+    .map((d) => ({ week_num: d.week_num as number, created_at: d.created_at ?? null }));
 }
 
 export async function ensureDefaultFolder(userId: string | null): Promise<string> {

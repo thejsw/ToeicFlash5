@@ -76,6 +76,7 @@
 
 ### user_profiles — 사용자 프로필
 - id: uuid (PK) — 사용자 ID
+- address: text — 메일 주소 (유저 판별용, UNIQUE)
 - username: text — 사용자명
 - avatar_url: text — 프로필 이미지
 - provider: text — 인증 제공자
@@ -105,8 +106,8 @@
 
 - words 1:N word_contents
 - words 1:N quiz_questions
-- quizzes 1:N quiz_questions
+- quizzes 1:N quiz_questions (Day별 퀴즈, 주차별 모의고사 등)
 - quiz_questions 1:N quiz_choices
-- quiz_questions 1:1 quiz_explanations
+- quiz_questions 1:N quiz_explanations
 - user_profiles 1:N bookmarks
 - bookmark_folders 1:N bookmarks

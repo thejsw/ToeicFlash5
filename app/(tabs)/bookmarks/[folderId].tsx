@@ -11,14 +11,15 @@ import {
   Alert,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useAuth } from '@/hooks/useAuth';
 import {
-  getCurrentUserId,
   getFolder,
   listBookmarksByFolder,
   listFolders,
   removeBookmark,
   moveBookmark,
   fetchWordsWithContents,
+  isAuthError,
   VocabularyWord,
   Bookmark,
 } from '@/lib/supabase';
@@ -31,11 +32,11 @@ import { useTheme } from '@/lib/theme';
 export default function FolderBookmarksScreen() {
   const { folderId } = useLocalSearchParams<{ folderId: string }>();
   const router = useRouter();
+  const { user, handleSessionError } = useAuth();
+  const userId = user?.id ?? null;
   const { width } = useWindowDimensions();
   const { colors, theme, toggleTheme } = useTheme();
   const flatListRef = useRef<FlatList>(null);
-
-  const [userId, setUserId] = useState<string | null>(null);
   const [folderName, setFolderName] = useState('');
   const [words, setWords] = useState<VocabularyWord[]>([]);
   const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
@@ -46,34 +47,41 @@ export default function FolderBookmarksScreen() {
 
   const loadData = useCallback(async () => {
     if (!folderId) return;
-    const uid = await getCurrentUserId();
-    setUserId(uid ?? null);
-    const [folder, bookmarkList, folderList] = await Promise.all([
-      getFolder(uid ?? null, folderId),
-      listBookmarksByFolder(uid ?? null, folderId),
-      listFolders(uid ?? null),
-    ]);
-    if (!folder) {
+    setLoading(true);
+    try {
+      const [folder, bookmarkList, folderList] = await Promise.all([
+        getFolder(userId, folderId),
+        listBookmarksByFolder(userId, folderId),
+        listFolders(userId),
+      ]);
+      if (!folder) {
+        setLoading(false);
+        return;
+      }
+      setFolderName(folder.name);
+      setFolders(folderList);
+      setBookmarks(bookmarkList);
+      if (bookmarkList.length === 0) {
+        setWords([]);
+        setLoading(false);
+        return;
+      }
+      const wordIds = bookmarkList.map((b) => b.word_id);
+      const wordsList = await fetchWordsWithContents(wordIds);
+      const orderMap = new Map(bookmarkList.map((b, i) => [b.word_id, i]));
+      const ordered = wordsList.sort(
+        (a, b) => (orderMap.get(a.id) ?? 999) - (orderMap.get(b.id) ?? 999)
+      );
+      setWords(ordered);
+    } catch (e) {
+      console.error('Failed to load folder bookmarks:', e);
+      if (isAuthError(e)) {
+        await handleSessionError();
+      }
+    } finally {
       setLoading(false);
-      return;
     }
-    setFolderName(folder.name);
-    setFolders(folderList);
-    setBookmarks(bookmarkList);
-    if (bookmarkList.length === 0) {
-      setWords([]);
-      setLoading(false);
-      return;
-    }
-    const wordIds = bookmarkList.map((b) => b.word_id);
-    const wordsList = await fetchWordsWithContents(wordIds);
-    const orderMap = new Map(bookmarkList.map((b, i) => [b.word_id, i]));
-    const ordered = wordsList.sort(
-      (a, b) => (orderMap.get(a.id) ?? 999) - (orderMap.get(b.id) ?? 999)
-    );
-    setWords(ordered);
-    setLoading(false);
-  }, [folderId]);
+  }, [folderId, userId, handleSessionError]);
 
   useEffect(() => {
     loadData();

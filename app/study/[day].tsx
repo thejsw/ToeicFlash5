@@ -17,6 +17,7 @@ import {
   getBookmarkedWordIds,
   addBookmark,
   removeBookmarkByWord,
+  upsertUserProgress,
 } from '@/lib/supabase';
 import FlipCard from '@/components/FlipCard';
 import AdBanner from '@/components/AdBanner';
@@ -339,8 +340,14 @@ export default function StudyScreen() {
           <TouchableOpacity
             style={[styles.completeButton, { backgroundColor: colors.primary }]}
             onPress={async () => {
-              // 학습 완료 상태 저장
               await AsyncStorage.setItem(`study_completed_day_${day}`, 'true');
+              if (userId) {
+                try {
+                  await upsertUserProgress(userId, parseInt(day, 10), words.length - 1);
+                } catch (e) {
+                  console.error('Failed to save user progress:', e);
+                }
+              }
               router.push(`/study/${day}/complete`);
             }}>
             <Text style={styles.completeButtonText}>Day 학습 완료</Text>

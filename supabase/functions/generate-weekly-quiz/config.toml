@@ -1,0 +1,2 @@
+# 로그인 없이 anon key만으로 호출 가능 (클라이언트에서 401 방지)
+verify_jwt = false

@@ -1,15 +1,20 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { supabase } from '@/lib/supabase';
+import { getUserProgressList, isAuthError } from '@/lib/supabase';
 import AdBanner from '@/components/AdBanner';
 import { BookOpen, Moon, Sun, Check, GraduationCap } from 'lucide-react-native';
 import { useTheme } from '@/lib/theme';
+import { useAuth } from '@/hooks/useAuth';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const TOTAL_DAYS = 50;
 
 export default function HomeScreen() {
   const router = useRouter();
   const { colors, theme, toggleTheme } = useTheme();
+  const { user, handleSessionError } = useAuth();
   const [loading, setLoading] = useState(true);
   const [wordCounts, setWordCounts] = useState<Record<number, number>>({});
   const [progressData, setProgressData] = useState<Record<number, number>>({});
@@ -37,49 +42,68 @@ export default function HomeScreen() {
     }
   };
 
-  const loadProgressData = async () => {
+  const loadProgressData = useCallback(async () => {
     try {
       const progress: Record<number, number> = {};
       const studyCompletedData: Record<number, boolean> = {};
       const quizCompletedData: Record<number, boolean> = {};
-      
-      for (let day = 1; day <= 20; day++) {
-        // 최대 진행상황을 사용 (진행상황이 리셋되지 않도록)
-        const maxProgressKey = `max_progress_day_${day}`;
-        const savedMaxProgress = await AsyncStorage.getItem(maxProgressKey);
-        const savedIndex = await AsyncStorage.getItem(`progress_day_${day}`);
-        
-        // 최대 진행상황이 있으면 그것을 사용, 없으면 현재 진행상황 사용
-        const indexToUse = savedMaxProgress !== null ? parseInt(savedMaxProgress) : (savedIndex ? parseInt(savedIndex) : -1);
-        
-        if (indexToUse >= 0) {
-          progress[day] = indexToUse + 1; // +1 because index is 0-based
-        } else {
-          progress[day] = 0;
+
+      if (user) {
+        const progressList = await getUserProgressList(user.id);
+        const byDay = new Map(progressList.map((p) => [p.day, p]));
+        for (let day = 1; day <= TOTAL_DAYS; day++) {
+          const row = byDay.get(day);
+          if (row) {
+            progress[day] = row.last_card_index + 1;
+            studyCompletedData[day] = true;
+            quizCompletedData[day] = true;
+          } else {
+            progress[day] = 0;
+            studyCompletedData[day] = false;
+            quizCompletedData[day] = false;
+          }
         }
-        
-        // 학습 완료 상태 확인
-        const studyCompletedValue = await AsyncStorage.getItem(`study_completed_day_${day}`);
-        studyCompletedData[day] = studyCompletedValue === 'true';
-        
-        // 퀴즈 완료 상태 확인
-        const quizCompletedValue = await AsyncStorage.getItem(`quiz_completed_day_${day}`);
-        quizCompletedData[day] = quizCompletedValue === 'true';
+      } else {
+        for (let day = 1; day <= TOTAL_DAYS; day++) {
+          const maxProgressKey = `max_progress_day_${day}`;
+          const savedMaxProgress = await AsyncStorage.getItem(maxProgressKey);
+          const savedIndex = await AsyncStorage.getItem(`progress_day_${day}`);
+          const indexToUse =
+            savedMaxProgress !== null
+              ? parseInt(savedMaxProgress)
+              : savedIndex
+                ? parseInt(savedIndex)
+                : -1;
+
+          if (indexToUse >= 0) {
+            progress[day] = indexToUse + 1;
+          } else {
+            progress[day] = 0;
+          }
+
+          studyCompletedData[day] =
+            (await AsyncStorage.getItem(`study_completed_day_${day}`)) === 'true';
+          quizCompletedData[day] =
+            (await AsyncStorage.getItem(`quiz_completed_day_${day}`)) === 'true';
+        }
       }
-      
+
       setProgressData(progress);
       setStudyCompleted(studyCompletedData);
       setQuizCompleted(quizCompletedData);
     } catch (error) {
       console.error('Error loading progress data:', error);
+      if (isAuthError(error)) {
+        await handleSessionError();
+      }
     }
-  };
+  }, [user, handleSessionError]);
 
   useFocusEffect(
     React.useCallback(() => {
       loadWordCounts();
       loadProgressData();
-    }, [])
+    }, [loadProgressData])
   );
 
   const handleDayPress = (day: number) => {
