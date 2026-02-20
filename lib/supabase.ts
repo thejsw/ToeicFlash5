@@ -14,6 +14,18 @@ function genId(): string {
   return Date.now().toString(36) + Math.random().toString(36).slice(2);
 }
 
+/** UUID v4 for bookmarks table id (같은 word를 여러 폴더에 넣을 때 행마다 다른 id) */
+function uuidV4(): string {
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
+    return (crypto as Crypto).randomUUID();
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+
 async function getGuestFolders(): Promise<GuestFolder[]> {
   const raw = await AsyncStorage.getItem(GUEST_FOLDERS_KEY);
   return raw ? JSON.parse(raw) : [];
@@ -1131,7 +1143,12 @@ export async function addBookmark(userId: string | null, wordId: string, folderI
   }
   const { error } = await supabase
     .from('bookmarks')
-    .insert({ user_id: userId, word_id: wordId, folder_id: targetFolderId });
+    .insert({
+      id: uuidV4(),
+      user_id: userId,
+      word_id: wordId,
+      folder_id: targetFolderId,
+    });
   if (error) throw error;
 }
 

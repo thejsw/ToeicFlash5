@@ -3,7 +3,6 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator
 import { useRouter, useFocusEffect } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import { getUserProgressList, isAuthError } from '@/lib/supabase';
-import AdBanner from '@/components/AdBanner';
 import { BookOpen, Moon, Sun, Check, GraduationCap } from 'lucide-react-native';
 import { useTheme } from '@/lib/theme';
 import { useAuth } from '@/hooks/useAuth';
@@ -140,8 +139,7 @@ export default function HomeScreen() {
         style={styles.scrollView}
         contentContainerStyle={[
           styles.scrollContent,
-          // 광고 영역이 가려지지 않도록 하단 여백 추가
-          { paddingBottom: 24 },
+        { paddingBottom: 24 },
         ]}>
         <View style={styles.grid}>
           {Array.from({ length: 10 }, (_, i) => i + 1).map((day) => {
@@ -209,8 +207,6 @@ export default function HomeScreen() {
         </View>
       </ScrollView>
 
-      {/* 항상 화면 가장 아래에 위치하는 광고 배너 */}
-      <AdBanner />
     </View>
   );
 }

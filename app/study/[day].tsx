@@ -20,7 +20,6 @@ import {
   upsertUserProgress,
 } from '@/lib/supabase';
 import FlipCard from '@/components/FlipCard';
-import AdBanner from '@/components/AdBanner';
 import BookmarkFolderPicker from '@/components/BookmarkFolderPicker';
 import { ChevronLeft, ChevronRight, Star, Moon, Sun } from 'lucide-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -151,11 +150,13 @@ export default function StudyScreen() {
     }
   };
 
-  const handleBookmarkFolderSelect = async (folderId: string) => {
-    if (words.length === 0) return;
+  const handleBookmarkFoldersSelect = async (folderIds: string[]) => {
+    if (words.length === 0 || folderIds.length === 0) return;
     const wordId = words[currentIndex].id;
     try {
-      await addBookmark(userId ?? null, wordId, folderId);
+      for (const folderId of folderIds) {
+        await addBookmark(userId ?? null, wordId, folderId);
+      }
       setBookmarkedIds((prev) => new Set([...prev, wordId]));
     } catch (error) {
       console.error('Error saving bookmark:', error);
@@ -401,10 +402,9 @@ export default function StudyScreen() {
       <BookmarkFolderPicker
         visible={folderPickerVisible}
         userId={userId}
-        onSelectFolder={handleBookmarkFolderSelect}
+        onSelectFolders={handleBookmarkFoldersSelect}
         onClose={() => setFolderPickerVisible(false)}
       />
-      <AdBanner />
     </View>
   );
 }

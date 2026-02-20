@@ -15,7 +15,6 @@ import { ClipboardList } from 'lucide-react-native';
 import { getCurrentWeekNum, formatWeeklyQuizTitle } from '@/lib/weekUtils';
 import { listAvailableWeeklyQuizzes, isAuthError, type WeeklyQuizItem } from '@/lib/supabase';
 import { generateWeeklyQuizQuestions } from '@/lib/llm';
-import AdBanner from '@/components/AdBanner';
 
 function withTimeout<T>(promise: Promise<T>, ms = 12000): Promise<T> {
   return Promise.race([
@@ -155,7 +154,6 @@ export default function TestScreen() {
           ))}
       </ScrollView>
 
-      <AdBanner />
     </View>
   );
 }
