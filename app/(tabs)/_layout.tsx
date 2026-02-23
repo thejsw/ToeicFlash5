@@ -1,5 +1,5 @@
 import { Tabs, useRouter, useSegments } from 'expo-router';
-import { Home, Bookmark, ClipboardCheck, User } from 'lucide-react-native';
+import { Home, Bookmark, ClipboardList, User } from 'lucide-react-native';
 import { useTheme } from '@/lib/theme';
 import { useCallback } from 'react';
 
@@ -37,15 +37,6 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="test"
-        options={{
-          title: '테스트',
-          tabBarIcon: ({ size, color }) => (
-            <ClipboardCheck size={size} {...({ color } as object)} />
-          ),
-        }}
-      />
-      <Tabs.Screen
         name="bookmarks"
         options={{
           title: '북마크',
@@ -69,6 +60,15 @@ export default function TabLayout() {
               router.replace('/(tabs)/profile');
             }
           },
+        }}
+      />
+      <Tabs.Screen
+        name="testTab"
+        options={{
+          title: '테스트',
+          tabBarIcon: ({ size, color }) => (
+            <ClipboardList size={size} color={color} />
+          ),
         }}
       />
     </Tabs>
