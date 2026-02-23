@@ -5,3 +5,7 @@ verify_jwt = false
 
 [functions.generate-quiz]
 verify_jwt = false
+
+# delete-user: 로그인한 사용자만 호출 가능 (게이트웨이 JWT 검증)
+[functions.delete-user]
+verify_jwt = true

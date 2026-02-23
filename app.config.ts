@@ -20,7 +20,7 @@ const config: ExpoConfig = {
   },
   android: {
     package: 'com.thejsw.toeicflashcardvoca',
-    versionCode: 18,
+    versionCode: 20,
     adaptiveIcon: {
       foregroundImage: './assets/images/Flash5Icon.png',
       backgroundColor: '#ffffff',

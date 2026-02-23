@@ -609,6 +609,7 @@ export async function deleteUserAccount() {
     hasAccessToken: !!session.access_token,
   });
 
+  // delete-user Edge Function은 verify_jwt = true → 유효한 JWT 필요 (Authorization 헤더 필수)
   const { data, error } = await supabase.functions.invoke('delete-user', {
     body: { user_id: session.user.id },
     headers: {
@@ -617,6 +618,9 @@ export async function deleteUserAccount() {
   });
   if (error) {
     console.error('[supabase] delete-user invoke error:', error);
+    if (isAuthError(error)) {
+      throw new Error('로그인 세션이 만료되었습니다. 다시 로그인한 뒤 시도해 주세요.');
+    }
     throw error;
   }
   if (data?.error) {
