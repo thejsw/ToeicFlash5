@@ -65,9 +65,15 @@ async function getInvokeErrorMessage(error: unknown): Promise<string> {
 
 /** 주차별 TOEIC Part 5 어휘 모의고사 10문항 생성 (Edge Function) */
 export async function generateWeeklyQuizQuestions(weekNum: number): Promise<QuizQuestion[]> {
+  // #region agent log
+  fetch('http://127.0.0.1:7243/ingest/57760822-afc0-4241-84bd-3d7185be3e6b',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({runId:'route-check',hypothesisId:'H5',location:'lib/llm.ts:68',message:'invoke generate-weekly-quiz start',data:{weekNum},timestamp:Date.now()})}).catch(()=>{});
+  // #endregion
   const { data, error } = await supabase.functions.invoke('generate-weekly-quiz', {
     body: { weekNum },
   });
+  // #region agent log
+  fetch('http://127.0.0.1:7243/ingest/57760822-afc0-4241-84bd-3d7185be3e6b',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({runId:'route-check',hypothesisId:'H6',location:'lib/llm.ts:73',message:'invoke generate-weekly-quiz result',data:{weekNum,hasData:Boolean(data),hasError:Boolean(error),errorMessage:(error as {message?:string}|null)?.message??null},timestamp:Date.now()})}).catch(()=>{});
+  // #endregion
 
   if (error) {
     const message = await getInvokeErrorMessage(error);
@@ -95,4 +101,34 @@ export async function generateWeeklyQuizQuestions(weekNum: number): Promise<Quiz
   }
 
   return questions;
+}
+
+type GetOrCreateWeeklyQuizResult = {
+  id?: string;
+  type?: string;
+  week_num?: number;
+  created_at?: string | null;
+  [key: string]: unknown;
+};
+
+/** 주차별 퀴즈: 존재하면 그대로, 없으면 생성 후 반환 (Edge Function) */
+export async function getOrCreateWeeklyQuiz(weekNum: number): Promise<GetOrCreateWeeklyQuizResult> {
+  const { data, error } = await supabase.functions.invoke('get-or-create-weekly-quiz', {
+    body: { weekNum },
+  });
+
+  if (error) {
+    const message = await getInvokeErrorMessage(error);
+    throw new Error(message);
+  }
+
+  if (!data) {
+    throw new Error('서버에서 응답이 없습니다. Edge Function(get-or-create-weekly-quiz)이 배포되었는지 확인해주세요.');
+  }
+
+  if ((data as { error?: unknown }).error && typeof (data as { error?: unknown }).error === 'string') {
+    throw new Error((data as { error: string }).error);
+  }
+
+  return data as GetOrCreateWeeklyQuizResult;
 }

@@ -76,6 +76,9 @@ serve(async (req: Request) => {
         400
       );
     }
+    // #region agent log
+    fetch('http://127.0.0.1:7243/ingest/57760822-afc0-4241-84bd-3d7185be3e6b',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({runId:'pre-fix',hypothesisId:'H2',location:'supabase/functions/generate-weekly-quiz/index.ts:80',message:'resolved weekNum',data:{weekNum},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
 
     const { data: existing } = await supabase
       .from('quizzes')
@@ -84,6 +87,9 @@ serve(async (req: Request) => {
       .eq('week_num', weekNum)
       .limit(1)
       .maybeSingle();
+    // #region agent log
+    fetch('http://127.0.0.1:7243/ingest/57760822-afc0-4241-84bd-3d7185be3e6b',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({runId:'pre-fix',hypothesisId:'H3',location:'supabase/functions/generate-weekly-quiz/index.ts:91',message:'existing weekly quiz lookup',data:{weekNum,existingQuizId:existing?.id??null},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
     if (existing?.id) {
       return jsonResponse(
         { error: '이미 해당 주차 모의고사가 존재합니다. 중복 생성되지 않습니다.', alreadyExists: true },
@@ -198,6 +204,7 @@ Return only valid JSON.`;
     const { data: quizRow, error: quizErr } = await supabase
       .from('quizzes')
       .insert({
+        id: crypto.randomUUID(),
         type: WEEKLY_MOCK_TYPE,
         week_num: weekNum,
         created_at: createdAt,
@@ -215,6 +222,7 @@ Return only valid JSON.`;
       const { data: questionRow, error: qErr } = await supabase
         .from('quiz_questions')
         .insert({
+          id: crypto.randomUUID(),
           word_id: placeholderWordId,
           quiz_id: quizId,
           question_text: q.question,
@@ -233,6 +241,7 @@ Return only valid JSON.`;
         const choiceText = String(choices[j] ?? '').trim();
         if (!choiceText) continue;
         const { error: cErr } = await supabase.from('quiz_choices').insert({
+          id: crypto.randomUUID(),
           question_id: questionId,
           choice_key: ORDER_KEYS[j] ?? String.fromCharCode(65 + j),
           choice_text: choiceText,
@@ -242,6 +251,7 @@ Return only valid JSON.`;
       }
 
       const { error: exErr } = await supabase.from('quiz_explanations').insert({
+        id: crypto.randomUUID(),
         question_id: questionId,
         language: 'ko',
         explanation: q.explanation ?? '',

@@ -13,8 +13,7 @@ import { useTheme } from '@/lib/theme';
 import { useAuth } from '@/hooks/useAuth';
 import { ClipboardList } from 'lucide-react-native';
 import { getCurrentWeekNum, formatWeeklyQuizTitle } from '@/lib/weekUtils';
-import { listAvailableWeeklyQuizzes, isAuthError, type WeeklyQuizItem } from '@/lib/supabase';
-import { generateWeeklyQuizQuestions } from '@/lib/llm';
+import { fetchQuizByWeek, listAvailableWeeklyQuizzes, isAuthError, type WeeklyQuizItem } from '@/lib/supabase';
 
 function withTimeout<T>(promise: Promise<T>, ms = 12000): Promise<T> {
   return Promise.race([
@@ -23,6 +22,39 @@ function withTimeout<T>(promise: Promise<T>, ms = 12000): Promise<T> {
       setTimeout(() => reject(new Error('요청 시간이 초과되었습니다.')), ms);
     }),
   ]);
+}
+
+const BACKEND_BASE_URL = process.env.EXPO_PUBLIC_BACKEND_URL ?? 'http://127.0.0.1:3000';
+
+type GenerateWeeklyQuizApiResult = {
+  questions?: unknown[];
+  created_at?: string | null;
+  error?: string;
+  alreadyExists?: boolean;
+};
+
+async function generateWeeklyQuizViaBackend(weekNum: number): Promise<GenerateWeeklyQuizApiResult> {
+  // #region agent log
+  fetch('http://127.0.0.1:7243/ingest/57760822-afc0-4241-84bd-3d7185be3e6b',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({runId:'route-check-2',hypothesisId:'H7',location:'app/(tabs)/testTab/index.tsx:37',message:'backend generate request start',data:{weekNum,backendBaseUrl:BACKEND_BASE_URL},timestamp:Date.now()})}).catch(()=>{});
+  // #endregion
+  const response = await fetch(`${BACKEND_BASE_URL}/quiz/generate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ weekNum }),
+  });
+  // #region agent log
+  fetch('http://127.0.0.1:7243/ingest/57760822-afc0-4241-84bd-3d7185be3e6b',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({runId:'route-check-2',hypothesisId:'H7',location:'app/(tabs)/testTab/index.tsx:44',message:'backend generate response',data:{weekNum,status:response.status,ok:response.ok},timestamp:Date.now()})}).catch(()=>{});
+  // #endregion
+
+  const data = (await response.json().catch(() => ({}))) as GenerateWeeklyQuizApiResult;
+  if (!response.ok) {
+    const message = data?.error || '주차 모의고사 생성 요청에 실패했습니다.';
+    const err = new Error(message) as Error & { alreadyExists?: boolean };
+    err.alreadyExists = Boolean(data?.alreadyExists);
+    throw err;
+  }
+
+  return data;
 }
 
 export default function TestScreen() {
@@ -65,27 +97,67 @@ export default function TestScreen() {
   const handleCreateAndStart = async () => {
     setCreating(currentWeekNum);
     try {
-      await generateWeeklyQuizQuestions(currentWeekNum);
+      // 1) 먼저 DB에 해당 주차 퀴즈가 이미 있는지 확인
+      const existing = await fetchQuizByWeek(currentWeekNum);
+      const hasExisting = existing.questions.length > 0;
+      // #region agent log
+      fetch('http://127.0.0.1:7243/ingest/57760822-afc0-4241-84bd-3d7185be3e6b',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({runId:'pre-fix',hypothesisId:'H1',location:'app/(tabs)/testTab/index.tsx:70',message:'fetchQuizByWeek result',data:{weekNum:currentWeekNum,questionCount:existing.questions.length,createdAt:existing.created_at,hasExisting},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
+
+      if (hasExisting) {
+        const createdAt = existing.created_at ?? new Date().toISOString();
+        setQuizzes((prev) => {
+          const exists = prev.some((q) => q.week_num === currentWeekNum);
+          if (exists) return prev;
+          return [{ week_num: currentWeekNum, created_at: createdAt }, ...prev];
+        });
+        router.push(`/test/week/${currentWeekNum}/quiz`);
+        return;
+      }
+
+      // 2) 없으면 backend quiz API로 생성
+      // #region agent log
+      fetch('http://127.0.0.1:7243/ingest/57760822-afc0-4241-84bd-3d7185be3e6b',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({runId:'pre-fix',hypothesisId:'H2',location:'app/(tabs)/testTab/index.tsx:84',message:'calling generateWeeklyQuizQuestions',data:{weekNum:currentWeekNum},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
+      await generateWeeklyQuizViaBackend(currentWeekNum);
+
+      // 3) 생성 후 다시 조회(로컬 목록/created_at 동기화)
+      const after = await fetchQuizByWeek(currentWeekNum);
+      const createdAt = after.created_at ?? new Date().toISOString();
       setQuizzes((prev) => {
         const exists = prev.some((q) => q.week_num === currentWeekNum);
         if (exists) return prev;
-        return [{ week_num: currentWeekNum, created_at: new Date().toISOString() }, ...prev];
+        return [{ week_num: currentWeekNum, created_at: createdAt }, ...prev];
       });
       router.push(`/test/week/${currentWeekNum}/quiz`);
     } catch (err: any) {
       console.error('Error creating weekly quiz:', err);
       const msg = err?.message ?? '';
-      if (msg.includes('이미 해당 주차') || msg.includes('alreadyExists')) {
-        setQuizzes((prev) => {
-          const exists = prev.some((q) => q.week_num === currentWeekNum);
-          if (exists) return prev;
-          return [{ week_num: currentWeekNum, created_at: new Date().toISOString() }, ...prev];
-        });
+      // #region agent log
+      fetch('http://127.0.0.1:7243/ingest/57760822-afc0-4241-84bd-3d7185be3e6b',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({runId:'pre-fix',hypothesisId:'H4',location:'app/(tabs)/testTab/index.tsx:98',message:'handleCreateAndStart catch',data:{weekNum:currentWeekNum,errorMessage:msg,isDuplicateMsg:msg.includes('이미 해당 주차')||msg.includes('alreadyExists')},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
+      if (msg.includes('이미 해당 주차') || msg.includes('alreadyExists') || Boolean(err?.alreadyExists)) {
+        // 중복 생성 요청이더라도 이미 만들어져 있을 가능성이 높으니 재조회 후 created_at 동기화
+        try {
+          const after = await fetchQuizByWeek(currentWeekNum);
+          const createdAt = after.created_at ?? new Date().toISOString();
+          setQuizzes((prev) => {
+            const exists = prev.some((q) => q.week_num === currentWeekNum);
+            if (exists) return prev;
+            return [{ week_num: currentWeekNum, created_at: createdAt }, ...prev];
+          });
+        } catch {
+          setQuizzes((prev) => {
+            const exists = prev.some((q) => q.week_num === currentWeekNum);
+            if (exists) return prev;
+            return [{ week_num: currentWeekNum, created_at: new Date().toISOString() }, ...prev];
+          });
+        }
         router.push(`/test/week/${currentWeekNum}/quiz`);
         return;
       }
       const hint =
-        'Supabase 대시보드에서 Edge Function "generate-weekly-quiz" 배포 여부와 시크릿(OPENAI_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY) 설정을 확인해주세요.';
+        `backend 서버 상태와 API 경로(${BACKEND_BASE_URL}/quiz/generate), 그리고 서버 환경변수(OPENAI_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY) 설정을 확인해주세요.`;
       Alert.alert('생성 실패', `${msg || '주차 모의고사를 생성하는 중 오류가 발생했습니다.'}\n\n${hint}`);
     } finally {
       setCreating(null);
@@ -126,7 +198,7 @@ export default function TestScreen() {
           </Text>
           <TouchableOpacity
             style={[styles.button, { backgroundColor: colors.primary }]}
-            onPress={hasCurrentQuiz ? () => handleStart(currentWeekNum) : handleCreateAndStart}
+            onPress={handleCreateAndStart}
             disabled={creating !== null}>
             {creating === currentWeekNum ? (
               <ActivityIndicator size="small" color="#fff" />

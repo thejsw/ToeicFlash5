@@ -3,6 +3,9 @@
 [functions.generate-weekly-quiz]
 verify_jwt = false
 
+[functions.get-or-create-weekly-quiz]
+verify_jwt = false
+
 [functions.generate-quiz]
 verify_jwt = false
 
