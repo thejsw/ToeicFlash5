@@ -772,18 +772,21 @@ export async function getUserSettings(userId: string): Promise<UserSettings | nu
 }
 
 /** 로그인 시 user_settings가 없으면 기본값으로 생성 */
-export async function ensureUserSettings(userId: string): Promise<UserSettings> {
+export async function ensureUserSettings(
+  userId: string,
+  defaultLearningLanguage = 'ko'
+): Promise<UserSettings> {
   const existing = await getUserSettings(userId);
   if (existing) return existing;
   return upsertUserSettings(userId, {
-    learning_language: 'ko',
+    learning_language: defaultLearningLanguage,
     notification_enabled: true,
   });
 }
 
 /** 신규 유저 초기 데이터 생성: user_settings, bookmark_folders(기본 폴더), user_progress는 학습 시 자동 생성 */
-export async function ensureNewUserData(userId: string): Promise<void> {
-  await ensureUserSettings(userId);
+export async function ensureNewUserData(userId: string, defaultLearningLanguage = 'ko'): Promise<void> {
+  await ensureUserSettings(userId, defaultLearningLanguage);
   await ensureDefaultFolder(userId);
 }
 

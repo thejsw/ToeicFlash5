@@ -14,7 +14,7 @@ import { useRouter } from 'expo-router';
 import { useTheme } from '@/lib/theme';
 import { useAuth } from '@/hooks/useAuth';
 import { getUserSettings, upsertUserSettings, ensureUserSettings, UserSettings } from '@/lib/supabase';
-import { syncI18nLanguageFromLearningLanguage } from '@/lib/i18n';
+import { resolveInitialI18nLanguage, syncI18nLanguageFromLearningLanguage } from '@/lib/i18n';
 import { useTranslation } from 'react-i18next';
 import { ArrowLeft, Globe, Bell, Trash2 } from 'lucide-react-native';
 
@@ -40,10 +40,11 @@ export default function SettingsScreen() {
     setLoadingSettings(true);
     try {
       // user_settings가 없을 수 있으므로 ensure로 생성 후 조회
-      const data = await ensureUserSettings(user.id);
+      const data = await ensureUserSettings(user.id, await resolveInitialI18nLanguage());
       setSettings(data);
     } catch (error) {
       console.error('Failed to load settings:', error);
+      const initialLanguage = await resolveInitialI18nLanguage();
       // 폴백: ensure 실패 시 getUserSettings 시도
       try {
         const fallback = await getUserSettings(user.id);
@@ -51,7 +52,7 @@ export default function SettingsScreen() {
           fallback ?? {
             id: '',
             user_id: user.id,
-            learning_language: 'ko',
+            learning_language: initialLanguage,
             notification_enabled: true,
             updated_at: '',
           }
@@ -60,7 +61,7 @@ export default function SettingsScreen() {
         setSettings({
           id: '',
           user_id: user.id,
-          learning_language: 'ko',
+          learning_language: initialLanguage,
           notification_enabled: true,
           updated_at: '',
         });
