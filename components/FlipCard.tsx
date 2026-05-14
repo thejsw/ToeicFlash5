@@ -8,6 +8,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { VocabularyWord } from '@/lib/supabase';
 import { useTheme } from '@/lib/theme';
+import { useTranslation } from 'react-i18next';
 
 const MAX_CARD_WIDTH = 420;
 /** 이 값 미만이면 모바일로 간주하고 MAX_CARD_WIDTH 적용 */
@@ -15,6 +16,10 @@ const MOBILE_BREAKPOINT = 768;
 
 type FlipCardProps = {
   word: VocabularyWord;
+  meaningLabel?: string;
+  exampleEnLabel?: string;
+  /** 번역 예문 섹션 제목 (학습 언어에 맞게, 예: 예문 (한국어)) */
+  localExampleLabel?: string;
   onFlip?: (isFlipped: boolean) => void;
   /** 외부에서 플립을 트리거하기 위한 신호 값 (변할 때마다 한 번 뒤집힘) */
   flipSignal?: number;
@@ -29,7 +34,19 @@ const MAX_CARD_HEIGHT = 560;
 /** 카드 상하 마진(하단 네비와 겹치지 않도록) */
 const CARD_MARGIN_VERTICAL = 10;
 
-export default function FlipCard({ word, onFlip, flipSignal, isActive }: FlipCardProps) {
+export default function FlipCard({
+  word,
+  meaningLabel,
+  exampleEnLabel,
+  localExampleLabel,
+  onFlip,
+  flipSignal,
+  isActive,
+}: FlipCardProps) {
+  const { t } = useTranslation();
+  const resolvedMeaning = meaningLabel ?? t('flashcard.meaning');
+  const resolvedExampleEn = exampleEnLabel ?? t('flashcard.exampleEn');
+  const resolvedExampleLocal = localExampleLabel ?? t('flashcard.exampleLocal');
   const { width, height } = useWindowDimensions();
   const isMobile = width < MOBILE_BREAKPOINT;
   const cardWidth = isMobile ? Math.min(width - 40, MAX_CARD_WIDTH) : width - 40;
@@ -108,13 +125,9 @@ export default function FlipCard({ word, onFlip, flipSignal, isActive }: FlipCar
             shadowColor: colors.text,
           },
         ]}>
-        <Text style={[styles.label, { color: colors.textSecondary }]}>
-          English
-        </Text>
+        <Text style={[styles.label, { color: colors.textSecondary }]}>{t('flashcard.english')}</Text>
         <Text style={[styles.word, { color: colors.text }]}>{word.word}</Text>
-        <Text style={[styles.hint, { color: colors.textTertiary }]}>
-          Tap to see meaning
-        </Text>
+        <Text style={[styles.hint, { color: colors.textTertiary }]}>{t('flashcard.tapHint')}</Text>
       </Animated.View>
 
       <Animated.View
@@ -130,20 +143,20 @@ export default function FlipCard({ word, onFlip, flipSignal, isActive }: FlipCar
         ]}
         collapsable={false}>
         <Text style={[styles.label, { color: colors.textSecondary }]}>
-          뜻
+          {resolvedMeaning}
         </Text>
         <Text style={[styles.meaning, { color: colors.primary }]}>
           {word.meaning || ' '}
         </Text>
         <View style={[styles.divider, { backgroundColor: colors.divider }]} />
         <Text style={[styles.exampleLabel, { color: colors.textSecondary }]}>
-          예문 (영어)
+          {resolvedExampleEn}
         </Text>
         <Text style={[styles.example, { color: colors.text }]}>
           {word.example_en || ' '}
         </Text>
         <Text style={[styles.exampleLabel, { color: colors.textSecondary }]}>
-          예문 (한국어)
+          {resolvedExampleLocal}
         </Text>
         <Text style={[styles.example, { color: colors.text }]}>
           {word.example_local || ' '}

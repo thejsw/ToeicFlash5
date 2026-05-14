@@ -12,8 +12,10 @@ import { useTheme } from '@/lib/theme';
 import { ChevronLeft } from 'lucide-react-native';
 import { QuizQuestion } from '@/types/quiz';
 import { fetchQuizByDay } from '@/lib/supabase';
+import { useTranslation } from 'react-i18next';
 
 export default function DayQuizScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const { day } = useLocalSearchParams<{ day: string }>();
   const { colors } = useTheme();
@@ -45,16 +47,17 @@ export default function DayQuizScreen() {
       }));
 
       if (quizQuestions.length === 0) {
-        throw new Error('해당 Day의 퀴즈가 없습니다.');
+        throw new Error(t('quiz.noQuestionsForDay'));
       }
 
       setQuestions(quizQuestions);
       setUserAnswers(new Array(quizQuestions.length).fill(''));
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error loading quiz:', err);
-      const errorMessage = err.message || '퀴즈를 불러오는 중 오류가 발생했습니다.';
+      const errorMessage =
+        err instanceof Error ? err.message : t('quiz.loadError');
       setError(errorMessage);
-      Alert.alert('오류', errorMessage);
+      Alert.alert(t('alert.error'), errorMessage);
     } finally {
       setLoading(false);
     }
@@ -69,7 +72,7 @@ export default function DayQuizScreen() {
 
   const handleNext = () => {
     if (selectedAnswer === null) {
-      Alert.alert('알림', '정답을 선택해주세요.');
+      Alert.alert(t('alert.notice'), t('quiz.selectAnswer'));
       return;
     }
 
@@ -77,9 +80,8 @@ export default function DayQuizScreen() {
       setCurrentQuestionIndex(currentQuestionIndex + 1);
       setSelectedAnswer(userAnswers[currentQuestionIndex + 1] || null);
     } else {
-      // 마지막 문제 완료 - 결과 화면으로 이동
       router.push({
-        pathname: `/study/${day}/quiz/result` as any,
+        pathname: `/study/${day}/quiz/result` as never,
         params: {
           questions: JSON.stringify(questions),
           userAnswers: JSON.stringify(userAnswers),
@@ -99,14 +101,14 @@ export default function DayQuizScreen() {
           <TouchableOpacity onPress={handleGoBack} style={styles.backButton}>
             <ChevronLeft size={24} color={colors.text} />
           </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: colors.text }]}>Day {day} 퀴즈</Text>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>
+            {t('quiz.dayTitle', { day: day || '' })}
+          </Text>
           <View style={{ width: 40 }} />
         </View>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
-            문제를 불러오는 중...
-          </Text>
+          <Text style={[styles.loadingText, { color: colors.textSecondary }]}>{t('quiz.loading')}</Text>
         </View>
       </View>
     );
@@ -119,17 +121,19 @@ export default function DayQuizScreen() {
           <TouchableOpacity onPress={handleGoBack} style={styles.backButton}>
             <ChevronLeft size={24} color={colors.text} />
           </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: colors.text }]}>Day {day} 퀴즈</Text>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>
+            {t('quiz.dayTitle', { day: day || '' })}
+          </Text>
           <View style={{ width: 40 }} />
         </View>
         <View style={styles.errorContainer}>
           <Text style={[styles.errorText, { color: colors.text }]}>
-            {error || '문제를 불러올 수 없습니다.'}
+            {error || t('quiz.cannotLoad')}
           </Text>
           <TouchableOpacity
             style={[styles.retryButton, { backgroundColor: colors.primary }]}
             onPress={loadQuestions}>
-            <Text style={styles.retryButtonText}>다시 시도</Text>
+            <Text style={styles.retryButtonText}>{t('quiz.retry')}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -145,7 +149,9 @@ export default function DayQuizScreen() {
         <TouchableOpacity onPress={handleGoBack} style={styles.backButton}>
           <ChevronLeft size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.text }]}>Day {day} 퀴즈</Text>
+        <Text style={[styles.headerTitle, { color: colors.text }]}>
+          {t('quiz.dayTitle', { day: day || '' })}
+        </Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -157,15 +163,13 @@ export default function DayQuizScreen() {
 
       <View style={styles.questionContainer}>
         <Text style={[styles.questionNumber, { color: colors.primary }]}>
-          문제 {currentQuestionIndex + 1}
+          {t('quiz.questionLabel', { n: currentQuestionIndex + 1 })}
         </Text>
-        <Text style={[styles.questionText, { color: colors.text }]}>
-          {currentQuestion.question}
-        </Text>
+        <Text style={[styles.questionText, { color: colors.text }]}>{currentQuestion.question}</Text>
 
         <View style={styles.choicesContainer}>
           {currentQuestion.choices.map((choice, index) => {
-            const choiceLabel = String.fromCharCode(65 + index); // A, B, C, D
+            const choiceLabel = String.fromCharCode(65 + index);
             const isSelected = selectedAnswer === choice;
 
             return (
@@ -180,9 +184,7 @@ export default function DayQuizScreen() {
                   },
                 ]}
                 onPress={() => handleAnswerSelect(choice)}>
-                <Text style={[styles.choiceLabel, { color: colors.textSecondary }]}>
-                  {choiceLabel}.
-                </Text>
+                <Text style={[styles.choiceLabel, { color: colors.textSecondary }]}>{choiceLabel}.</Text>
                 <Text style={[styles.choiceText, { color: colors.text }]}>{choice}</Text>
               </TouchableOpacity>
             );
@@ -205,7 +207,7 @@ export default function DayQuizScreen() {
               styles.nextButtonText,
               { color: isAnswered ? '#ffffff' : colors.textSecondary },
             ]}>
-            {currentQuestionIndex < questions.length - 1 ? '다음 문제' : '결과 보기'}
+            {currentQuestionIndex < questions.length - 1 ? t('quiz.next') : t('quiz.viewResults')}
           </Text>
         </TouchableOpacity>
       </View>
@@ -322,4 +324,3 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
-

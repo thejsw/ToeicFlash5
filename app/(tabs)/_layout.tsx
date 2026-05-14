@@ -2,8 +2,10 @@ import { Tabs, useRouter, useSegments } from 'expo-router';
 import { Home, Bookmark, ClipboardList, User } from 'lucide-react-native';
 import { useTheme } from '@/lib/theme';
 import { useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 
 export default function TabLayout() {
+  const { t } = useTranslation();
   const { colors } = useTheme();
   const router = useRouter();
   const segments = useSegments();
@@ -30,7 +32,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: '홈',
+          title: t('tabs.home'),
           tabBarIcon: ({ size, color }) => (
             <Home size={size} {...({ color } as object)} />
           ),
@@ -39,7 +41,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="bookmarks"
         options={{
-          title: '북마크',
+          title: t('tabs.bookmarks'),
           tabBarIcon: ({ size, color }) => (
             <Bookmark size={size} {...({ color } as object)} />
           ),
@@ -48,7 +50,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="profile"
         options={{
-          title: '프로필',
+          title: t('tabs.profile'),
           tabBarIcon: ({ size, color }) => (
             <User size={size} {...({ color } as object)} />
           ),
@@ -65,7 +67,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="testTab"
         options={{
-          title: '테스트',
+          title: t('tabs.test'),
           tabBarIcon: ({ size, color }) => (
             <ClipboardList size={size} color={color} />
           ),

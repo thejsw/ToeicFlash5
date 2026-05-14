@@ -12,8 +12,10 @@ import {
   upsertUserProfile,
   ensureNewUserData,
   ensureUserSettings,
+  getUserSettings,
   UserProfile,
 } from '@/lib/supabase';
+import i18n, { syncI18nLanguageFromLearningLanguage } from '@/lib/i18n';
 
 type AuthState = {
   session: Session | null;
@@ -68,7 +70,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       (merged.full_name as string) ??
       (merged.name as string) ??
       user.email?.split('@')[0] ??
-      '사용자';
+      i18n.t('profile.defaultUser');
     const avatarUrl =
       (merged.avatar_url as string) ?? (merged.picture as string) ?? null;
     const provider = (user.app_metadata?.provider as string) ?? 'email';
@@ -190,6 +192,29 @@ export function AuthProvider({ children }: AuthProviderProps) {
       subscription.unsubscribe();
     };
   }, [ensureProfile, fetchProfile]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!state.user) {
+        syncI18nLanguageFromLearningLanguage('ko');
+        return;
+      }
+      try {
+        const s = await getUserSettings(state.user.id);
+        if (!cancelled) {
+          syncI18nLanguageFromLearningLanguage(s?.learning_language);
+        }
+      } catch {
+        if (!cancelled) {
+          syncI18nLanguageFromLearningLanguage('ko');
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [state.user?.id]);
 
   const signInWithGoogle = useCallback(async (redirectTo?: string) => {
     setState((prev) => ({ ...prev, loading: true }));

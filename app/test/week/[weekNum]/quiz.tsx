@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -13,8 +13,10 @@ import { ChevronLeft } from 'lucide-react-native';
 import { QuizQuestion } from '@/types/quiz';
 import { fetchQuizByWeek } from '@/lib/supabase';
 import { formatWeeklyQuizTitle } from '@/lib/weekUtils';
+import { useTranslation } from 'react-i18next';
 
 export default function WeekQuizScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const { weekNum } = useLocalSearchParams<{ weekNum: string }>();
   const { colors } = useTheme();
@@ -29,20 +31,11 @@ export default function WeekQuizScreen() {
   const num = weekNum ? parseInt(weekNum, 10) : 0;
   const title = Number.isNaN(num) ? '' : formatWeeklyQuizTitle(num);
 
-  useEffect(() => {
-    if (Number.isNaN(num) || num <= 0) {
-      setError('잘못된 주차입니다.');
-      setLoading(false);
-      return;
-    }
-    loadQuestions();
-  }, [weekNum]);
-
-  const loadQuestions = async () => {
+  const loadQuestions = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
-      const { questions: weekQuestions, created_at: _createdAt } = await fetchQuizByWeek(num);
+      const { questions: weekQuestions } = await fetchQuizByWeek(num);
       const quizQuestions: QuizQuestion[] = weekQuestions.map((q) => ({
         question: q.question_text,
         choices: q.choices.map((c) => c.choice_text),
@@ -51,19 +44,29 @@ export default function WeekQuizScreen() {
       }));
 
       if (quizQuestions.length === 0) {
-        throw new Error('해당 주차의 퀴즈가 없습니다. 먼저 테스트 탭에서 생성해주세요.');
+        throw new Error(t('weeklyQuiz.noQuiz'));
       }
 
       setQuestions(quizQuestions);
       setUserAnswers(new Array(quizQuestions.length).fill(''));
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error loading week quiz:', err);
-      setError(err?.message ?? '퀴즈를 불러오는 중 오류가 발생했습니다.');
-      Alert.alert('오류', err?.message ?? '퀴즈를 불러오는 중 오류가 발생했습니다.');
+      const msg = err instanceof Error ? err.message : t('weeklyQuiz.loadError');
+      setError(msg);
+      Alert.alert(t('alert.error'), msg);
     } finally {
       setLoading(false);
     }
-  };
+  }, [num, t]);
+
+  useEffect(() => {
+    if (Number.isNaN(num) || num <= 0) {
+      setError(t('weeklyQuiz.invalidWeek'));
+      setLoading(false);
+      return;
+    }
+    loadQuestions();
+  }, [weekNum, num, t, loadQuestions]);
 
   const handleAnswerSelect = (choice: string) => {
     setSelectedAnswer(choice);
@@ -74,7 +77,7 @@ export default function WeekQuizScreen() {
 
   const handleNext = () => {
     if (selectedAnswer === null) {
-      Alert.alert('알림', '정답을 선택해주세요.');
+      Alert.alert(t('alert.notice'), t('quiz.selectAnswer'));
       return;
     }
 
@@ -83,7 +86,7 @@ export default function WeekQuizScreen() {
       setSelectedAnswer(userAnswers[currentQuestionIndex + 1] || null);
     } else {
       router.push({
-        pathname: `/test/week/${weekNum}/quiz/result`,
+        pathname: `/test/week/${weekNum}/quiz/result` as never,
         params: {
           questions: JSON.stringify(questions),
           userAnswers: JSON.stringify(userAnswers),
@@ -96,6 +99,8 @@ export default function WeekQuizScreen() {
     router.back();
   };
 
+  const headerTitle = title || t('weeklyQuiz.defaultTitle');
+
   if (loading) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -104,15 +109,13 @@ export default function WeekQuizScreen() {
             <ChevronLeft size={24} color={colors.text} />
           </TouchableOpacity>
           <Text style={[styles.headerTitle, { color: colors.text }]} numberOfLines={1}>
-            {title || '주차 모의고사'}
+            {headerTitle}
           </Text>
           <View style={{ width: 40 }} />
         </View>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
-            문제를 불러오는 중...
-          </Text>
+          <Text style={[styles.loadingText, { color: colors.textSecondary }]}>{t('quiz.loading')}</Text>
         </View>
       </View>
     );
@@ -125,17 +128,15 @@ export default function WeekQuizScreen() {
           <TouchableOpacity onPress={handleGoBack} style={styles.backButton}>
             <ChevronLeft size={24} color={colors.text} />
           </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: colors.text }]}>{title || '주차 모의고사'}</Text>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>{headerTitle}</Text>
           <View style={{ width: 40 }} />
         </View>
         <View style={styles.errorContainer}>
-          <Text style={[styles.errorText, { color: colors.text }]}>
-            {error || '문제를 불러올 수 없습니다.'}
-          </Text>
+          <Text style={[styles.errorText, { color: colors.text }]}>{error || t('quiz.cannotLoad')}</Text>
           <TouchableOpacity
             style={[styles.retryButton, { backgroundColor: colors.primary }]}
             onPress={loadQuestions}>
-            <Text style={styles.retryButtonText}>다시 시도</Text>
+            <Text style={styles.retryButtonText}>{t('quiz.retry')}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -165,11 +166,9 @@ export default function WeekQuizScreen() {
 
       <View style={styles.questionContainer}>
         <Text style={[styles.questionNumber, { color: colors.primary }]}>
-          문제 {currentQuestionIndex + 1}
+          {t('quiz.questionLabel', { n: currentQuestionIndex + 1 })}
         </Text>
-        <Text style={[styles.questionText, { color: colors.text }]}>
-          {currentQuestion.question}
-        </Text>
+        <Text style={[styles.questionText, { color: colors.text }]}>{currentQuestion.question}</Text>
 
         <View style={styles.choicesContainer}>
           {currentQuestion.choices.map((choice, index) => {
@@ -187,9 +186,7 @@ export default function WeekQuizScreen() {
                   },
                 ]}
                 onPress={() => handleAnswerSelect(choice)}>
-                <Text style={[styles.choiceLabel, { color: colors.textSecondary }]}>
-                  {choiceLabel}.
-                </Text>
+                <Text style={[styles.choiceLabel, { color: colors.textSecondary }]}>{choiceLabel}.</Text>
                 <Text style={[styles.choiceText, { color: colors.text }]}>{choice}</Text>
               </TouchableOpacity>
             );
@@ -199,18 +196,12 @@ export default function WeekQuizScreen() {
 
       <View style={[styles.footer, { backgroundColor: colors.surface, borderTopColor: colors.border }]}>
         <TouchableOpacity
-          style={[
-            styles.nextButton,
-            { backgroundColor: isAnswered ? colors.primary : colors.border },
-          ]}
+          style={[styles.nextButton, { backgroundColor: isAnswered ? colors.primary : colors.border }]}
           onPress={handleNext}
           disabled={!isAnswered}>
           <Text
-            style={[
-              styles.nextButtonText,
-              { color: isAnswered ? '#ffffff' : colors.textSecondary },
-            ]}>
-            {currentQuestionIndex < questions.length - 1 ? '다음 문제' : '결과 보기'}
+            style={[styles.nextButtonText, { color: isAnswered ? '#ffffff' : colors.textSecondary }]}>
+            {currentQuestionIndex < questions.length - 1 ? t('quiz.next') : t('quiz.viewResults')}
           </Text>
         </TouchableOpacity>
       </View>

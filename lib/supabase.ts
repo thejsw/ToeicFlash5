@@ -141,12 +141,59 @@ type WordContentRow = {
   language?: string | null;
 };
 
+/** word_contents.language / user_settings.learning_language 비교용 (jp·ja 동일, ko·kr·ko-KR → ko) */
+export function normalizeWordContentLanguageKey(lang: string | null | undefined): string {
+  const raw = (lang ?? '').trim().toLowerCase();
+  if (!raw) return '';
+  if (raw === 'jp' || raw.startsWith('ja')) return 'ja';
+  // ISO 639-1 ko, ISO 639-1 kr(한국), BCP 47 ko-KR 등
+  if (raw.startsWith('ko') || raw === 'kr' || raw.startsWith('kr-')) return 'ko';
+  const head = raw.split(/[-_]/)[0];
+  return head || raw;
+}
+
+function pickWordContentRow(
+  rows: WordContentRow[],
+  preferredLearningLanguage: string
+): WordContentRow | undefined {
+  if (rows.length === 0) return undefined;
+  const want = normalizeWordContentLanguageKey(preferredLearningLanguage) || 'ko';
+  const keyOf = (r: WordContentRow) => normalizeWordContentLanguageKey(r.language);
+
+  const preferred = rows.find((r) => keyOf(r) === want);
+  if (preferred) return preferred;
+
+  if (want === 'ko') {
+    const koRow = rows.find((r) => keyOf(r) === 'ko');
+    if (koRow) return koRow;
+    // DB에 language 미기입으로 한국어 행만 넣은 경우
+    const unlabeled = rows.find((r) => !((r.language ?? '').trim()));
+    if (unlabeled) return unlabeled;
+  }
+
+  if (want === 'ja') {
+    const jaRow = rows.find((r) => keyOf(r) === 'ja');
+    if (jaRow) return jaRow;
+  }
+
+  // en 행은 example_local에 영문이 그대로 들어 있는 경우가 많아, ko/ja 매칭 실패 시 최후 수단으로만 사용
+  const nonEn = rows.find((r) => {
+    const k = keyOf(r);
+    return k !== '' && k !== 'en';
+  });
+  if (nonEn) return nonEn;
+
+  return rows[0];
+}
+
 /**
  * words와 word_contents를 각각 조회한 뒤 클라이언트에서 병합.
  * (Supabase 중첩 select가 null을 주는 경우 대비 — relation/FK 설정 없어도 동작)
+ * @param learningLanguage user_settings.learning_language (예: ko, ja, jp)
  */
 export async function fetchWordsWithContents(
-  wordIds: string[] | { day: number }
+  wordIds: string[] | { day: number },
+  learningLanguage: string = 'ko'
 ): Promise<VocabularyWord[]> {
   const isByDay = typeof wordIds === 'object' && 'day' in wordIds;
 
@@ -176,15 +223,12 @@ export async function fetchWordsWithContents(
   if (contentsError) throw contentsError;
   const contents = (contentsData ?? []) as WordContentRow[];
 
-  const byWordId = new Map<string, WordContentRow>();
+  const rowsByWordId = new Map<string, WordContentRow[]>();
   for (const c of contents) {
     if (c.word_id == null || c.word_id === '') continue;
-    const existing = byWordId.get(c.word_id);
-    const isKo = (c.language ?? '').toLowerCase().startsWith('ko');
-    const existingIsKo = existing ? (existing.language ?? '').toLowerCase().startsWith('ko') : false;
-    if (!existing || (isKo && !existingIsKo)) {
-      byWordId.set(c.word_id, c);
-    }
+    const list = rowsByWordId.get(c.word_id) ?? [];
+    list.push(c);
+    rowsByWordId.set(c.word_id, list);
   }
 
   function getExampleLocalOnly(c: WordContentRow | undefined): string {
@@ -194,7 +238,8 @@ export async function fetchWordsWithContents(
   }
 
   return words.map((w) => {
-    const c = byWordId.get(w.id);
+    const rows = rowsByWordId.get(w.id) ?? [];
+    const c = pickWordContentRow(rows, learningLanguage);
     const exampleEn = w.example_en ?? '';
     const exampleLocal = getExampleLocalOnly(c);
     return {

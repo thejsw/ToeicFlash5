@@ -24,12 +24,13 @@ import {
   BookOpen,
   ClipboardCheck,
 } from 'lucide-react-native';
+import { useTranslation } from 'react-i18next';
 
-function withTimeout<T>(promise: Promise<T>, ms = 12000): Promise<T> {
+function withTimeout<T>(promise: Promise<T>, ms: number, timeoutMessage: string): Promise<T> {
   return Promise.race([
     promise,
     new Promise<T>((_, reject) => {
-      setTimeout(() => reject(new Error('요청 시간이 초과되었습니다.')), ms);
+      setTimeout(() => reject(new Error(timeoutMessage)), ms);
     }),
   ]);
 }
@@ -55,6 +56,7 @@ function GoogleIcon({ size, color }: { size: number; color: string }) {
 }
 
 export default function ProfileScreen() {
+  const { t } = useTranslation();
   const { colors } = useTheme();
   const router = useRouter();
   const { user, profile, loading, initialized, signInWithGoogle, signOut, syncProfileFromAuth, handleSessionError } =
@@ -93,10 +95,14 @@ export default function ProfileScreen() {
     if (!user) return;
     setStatsLoading(true);
     try {
-      const [progress, weeks] = await withTimeout(Promise.all([
-        getUserProgressList(user.id),
-        getWeeklyQuizAttempts(user.id),
-      ]));
+      const [progress, weeks] = await withTimeout(
+        Promise.all([
+          getUserProgressList(user.id),
+          getWeeklyQuizAttempts(user.id),
+        ]),
+        12000,
+        t('errors.requestTimeout')
+      );
       setProgressList(progress);
       setWeeklyAttempts(weeks);
     } catch (error) {
@@ -109,7 +115,7 @@ export default function ProfileScreen() {
     } finally {
       setStatsLoading(false);
     }
-  }, [user, handleSessionError]);
+  }, [user, handleSessionError, t]);
 
   useEffect(() => {
     if (user) {
@@ -134,8 +140,8 @@ export default function ProfileScreen() {
           : undefined;
       await signInWithGoogle(redirectTo);
     } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : '알 수 없는 오류';
-      Alert.alert('로그인 실패', errorMessage);
+      const errorMessage = error instanceof Error ? error.message : t('settings.unknownError');
+      Alert.alert(t('profile.loginFail'), errorMessage);
     } finally {
       setAuthLoading(false);
     }
@@ -144,11 +150,11 @@ export default function ProfileScreen() {
   const handleSignOut = async () => {
     const isWeb = Platform.OS === 'web' && typeof window !== 'undefined';
     const confirmed = isWeb
-      ? window.confirm('정말 로그아웃 하시겠습니까?')
+      ? window.confirm(t('profile.signOutConfirm'))
       : await new Promise<boolean>((resolve) => {
-          Alert.alert('로그아웃', '정말 로그아웃 하시겠습니까?', [
-            { text: '취소', style: 'cancel', onPress: () => resolve(false) },
-            { text: '로그아웃', style: 'destructive', onPress: () => resolve(true) },
+          Alert.alert(t('profile.signOutTitle'), t('profile.signOutConfirm'), [
+            { text: t('folder.cancel'), style: 'cancel', onPress: () => resolve(false) },
+            { text: t('profile.signOut'), style: 'destructive', onPress: () => resolve(true) },
           ]);
         });
 
@@ -160,8 +166,8 @@ export default function ProfileScreen() {
         window.location.reload();
       }
     } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : '알 수 없는 오류';
-      Alert.alert('오류', errorMessage);
+      const errorMessage = error instanceof Error ? error.message : t('settings.unknownError');
+      Alert.alert(t('alert.error'), errorMessage);
     }
   };
 
@@ -182,15 +188,15 @@ export default function ProfileScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
-          <Text style={[styles.title, { color: colors.text }]}>프로필</Text>
+          <Text style={[styles.title, { color: colors.text }]}>{t('profile.title')}</Text>
         </View>
         <ScrollView contentContainerStyle={styles.loginContent}>
           <View style={[styles.iconWrap, { backgroundColor: colors.primaryLight }]}>
             <User size={48} color={colors.primary} />
           </View>
-          <Text style={[styles.loginTitle, { color: colors.text }]}>로그인하기</Text>
+          <Text style={[styles.loginTitle, { color: colors.text }]}>{t('profile.loginTitle')}</Text>
           <Text style={[styles.loginSubtitle, { color: colors.textSecondary }]}>
-            학습 진도와 북마크를 저장하고{'\n'}여러 기기에서 동기화하세요.
+            {t('profile.loginSubtitle')}
           </Text>
 
           <TouchableOpacity
@@ -199,11 +205,11 @@ export default function ProfileScreen() {
             disabled={authLoading}
           >
             <GoogleIcon size={24} color="#4285F4" />
-            <Text style={styles.googleButtonText}>Google로 계속하기</Text>
+            <Text style={styles.googleButtonText}>{t('profile.googleContinue')}</Text>
           </TouchableOpacity>
 
           <Text style={[styles.infoText, { color: colors.textSecondary }]}>
-            비로그인 상태에서도 학습, 북마크, 테스트를 이용할 수 있습니다.
+            {t('profile.guestInfo')}
           </Text>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -218,7 +224,7 @@ export default function ProfileScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
-        <Text style={[styles.title, { color: colors.text }]}>프로필</Text>
+        <Text style={[styles.title, { color: colors.text }]}>{t('profile.title')}</Text>
       </View>
       <ScrollView contentContainerStyle={styles.profileContent}>
         {/* 프로필 섹션 */}
@@ -233,7 +239,7 @@ export default function ProfileScreen() {
             )}
             <View style={styles.profileInfo}>
               <Text style={[styles.displayName, { color: colors.text }]}>
-                {displayNickname || '사용자'}
+                {displayNickname || t('profile.defaultUser')}
               </Text>
               <Text style={[styles.email, { color: colors.textSecondary }]}>
                 {user.email ?? ''}
@@ -243,7 +249,7 @@ export default function ProfileScreen() {
         </View>
 
         {/* 학습 정보 요약 */}
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>학습 현황</Text>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('profile.statsSection')}</Text>
         <View style={[styles.statsCard, { backgroundColor: colors.surface }]}>
           {statsLoading ? (
             <ActivityIndicator color={colors.primary} />
@@ -258,11 +264,11 @@ export default function ProfileScreen() {
                   )}
                 </View>
                 <View style={styles.statContent}>
-                  <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Day 진행도</Text>
+                  <Text style={[styles.statLabel, { color: colors.textSecondary }]}>{t('profile.dayProgressLabel')}</Text>
                   <Text style={[styles.statValue, { color: colors.text }]}>
                     {isDayComplete
-                      ? `${totalDays}일 학습 완료`
-                      : `${completedDays} / ${totalDays} 일 학습`}
+                      ? t('profile.dayProgressComplete', { total: totalDays })
+                      : t('profile.dayProgressPartial', { completed: completedDays, total: totalDays })}
                   </Text>
                 </View>
               </View>
@@ -273,12 +279,12 @@ export default function ProfileScreen() {
                 </View>
                 <View style={styles.statContent}>
                   <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
-                    주차별 모의고사
+                    {t('profile.weeklyMockLabel')}
                   </Text>
                   <Text style={[styles.statValue, { color: colors.text }]}>
                     {weeklyAttempts.length > 0
-                      ? `${weeklyAttempts.length}개 주차 응시 가능`
-                      : '응시 가능한 모의고사 없음'}
+                      ? t('profile.weeklyMockHas', { count: weeklyAttempts.length })
+                      : t('profile.weeklyMockNone')}
                   </Text>
                 </View>
               </View>
@@ -287,7 +293,7 @@ export default function ProfileScreen() {
         </View>
 
         {/* 메뉴 리스트 */}
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>설정</Text>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('profile.settingsSection')}</Text>
         <View style={[styles.menuCard, { backgroundColor: colors.surface }]}>
           <TouchableOpacity
             style={styles.menuItem}
@@ -295,7 +301,7 @@ export default function ProfileScreen() {
           >
             <View style={styles.menuLeft}>
               <Settings size={20} color={colors.textSecondary} />
-              <Text style={[styles.menuText, { color: colors.text }]}>앱 설정</Text>
+              <Text style={[styles.menuText, { color: colors.text }]}>{t('profile.appSettings')}</Text>
             </View>
             <ChevronRight size={20} color={colors.textSecondary} />
           </TouchableOpacity>
@@ -303,7 +309,7 @@ export default function ProfileScreen() {
           <TouchableOpacity style={styles.menuItem} onPress={handleSignOut}>
             <View style={styles.menuLeft}>
               <LogOut size={20} color={colors.error ?? '#dc2626'} />
-              <Text style={[styles.menuText, { color: colors.error ?? '#dc2626' }]}>로그아웃</Text>
+              <Text style={[styles.menuText, { color: colors.error ?? '#dc2626' }]}>{t('profile.signOut')}</Text>
             </View>
           </TouchableOpacity>
         </View>

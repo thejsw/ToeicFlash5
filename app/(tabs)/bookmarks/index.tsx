@@ -29,8 +29,10 @@ import { Moon, Sun, MoreVertical } from 'lucide-react-native';
 import { useTheme } from '@/lib/theme';
 import FolderOptionsSheet from './_components/FolderOptionsSheet';
 import FolderSelectSheet from './_components/FolderSelectSheet';
+import { useTranslation } from 'react-i18next';
 
 export default function BookmarksIndexScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const { user, handleSessionError } = useAuth();
   const userId = user?.id ?? null;
@@ -87,7 +89,7 @@ export default function BookmarksIndexScreen() {
       setCreateModalVisible(false);
       setNewFolderName('');
     } catch (e) {
-      Alert.alert('오류', '폴더 생성에 실패했습니다.');
+      Alert.alert(t('alert.error'), t('folder.createError'));
     }
   };
 
@@ -102,7 +104,7 @@ export default function BookmarksIndexScreen() {
       setEditFolderId(null);
       setEditName('');
     } catch (e) {
-      Alert.alert('오류', '폴더 이름 변경에 실패했습니다.');
+      Alert.alert(t('alert.error'), t('folder.renameError'));
     }
   };
 
@@ -118,7 +120,7 @@ export default function BookmarksIndexScreen() {
       await deleteFolder(userId ?? null, folder.id);
       setFolders((prev) => prev.filter((f) => f.id !== folder.id));
     } catch (e) {
-      Alert.alert('오류', '폴더 삭제에 실패했습니다.');
+      Alert.alert(t('alert.error'), t('folder.deleteError'));
     }
   };
 
@@ -155,7 +157,7 @@ export default function BookmarksIndexScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
-        <Text style={[styles.headerTitle, { color: colors.text }]}>북마크 폴더</Text>
+        <Text style={[styles.headerTitle, { color: colors.text }]}>{t('folder.headerTitle')}</Text>
         <View style={styles.headerActions}>
           <TouchableOpacity onPress={toggleTheme} style={styles.themeButton}>
             {theme === 'light' ? (
@@ -208,22 +210,22 @@ export default function BookmarksIndexScreen() {
       <Modal visible={!!deleteConfirmFolder} transparent animationType="fade">
         <View style={styles.deleteModalOverlay}>
           <View style={[styles.deleteModalBox, { backgroundColor: colors.surface }]}>
-            <Text style={[styles.deleteModalTitle, { color: colors.text }]}>폴더 삭제</Text>
+            <Text style={[styles.deleteModalTitle, { color: colors.text }]}>{t('folder.deleteModalTitle')}</Text>
             <Text style={[styles.deleteModalMessage, { color: colors.textSecondary }]}>
               {deleteConfirmFolder
-                ? `"${deleteConfirmFolder.name}" 폴더를 삭제할까요? 안에 있는 북마크는 기본 폴더로 이동됩니다.`
+                ? t('folder.deleteModalMessage', { name: deleteConfirmFolder.name })
                 : ''}
             </Text>
             <View style={styles.deleteModalActions}>
               <TouchableOpacity
                 style={[styles.deleteModalBtn, { backgroundColor: colors.border }]}
                 onPress={() => setDeleteConfirmFolder(null)}>
-                <Text style={[styles.deleteModalBtnText, { color: colors.text }]}>취소</Text>
+                <Text style={[styles.deleteModalBtnText, { color: colors.text }]}>{t('folder.cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.deleteModalBtn, { backgroundColor: colors.error }]}
                 onPress={handleConfirmDelete}>
-                <Text style={[styles.deleteModalBtnText, { color: '#fff' }]}>삭제</Text>
+                <Text style={[styles.deleteModalBtnText, { color: '#fff' }]}>{t('folder.deleteSubmit')}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -235,10 +237,10 @@ export default function BookmarksIndexScreen() {
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           style={styles.modalOverlay}>
           <View style={[styles.modalBox, { backgroundColor: colors.surface }]}>
-            <Text style={[styles.modalTitle, { color: colors.text }]}>새 폴더</Text>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>{t('folder.newFolder')}</Text>
             <TextInput
               style={[styles.input, { color: colors.text, borderColor: colors.border }]}
-              placeholder="폴더 이름"
+              placeholder={t('folder.namePlaceholder')}
               placeholderTextColor={colors.textSecondary}
               value={newFolderName}
               onChangeText={setNewFolderName}
@@ -251,13 +253,13 @@ export default function BookmarksIndexScreen() {
                   setCreateModalVisible(false);
                   setNewFolderName('');
                 }}>
-                <Text style={[styles.modalBtnText, { color: colors.text }]}>취소</Text>
+                <Text style={[styles.modalBtnText, { color: colors.text }]}>{t('folder.cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.modalBtn, { backgroundColor: colors.primary }]}
                 onPress={handleCreateFolder}
                 disabled={!newFolderName.trim()}>
-                <Text style={[styles.modalBtnText, { color: '#fff' }]}>만들기</Text>
+                <Text style={[styles.modalBtnText, { color: '#fff' }]}>{t('folder.createSubmit')}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -269,10 +271,10 @@ export default function BookmarksIndexScreen() {
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           style={styles.modalOverlay}>
           <View style={[styles.modalBox, { backgroundColor: colors.surface }]}>
-            <Text style={[styles.modalTitle, { color: colors.text }]}>폴더 이름 변경</Text>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>{t('folder.renameModalTitle')}</Text>
             <TextInput
               style={[styles.input, { color: colors.text, borderColor: colors.border }]}
-              placeholder="폴더 이름"
+              placeholder={t('folder.namePlaceholder')}
               placeholderTextColor={colors.textSecondary}
               value={editName}
               onChangeText={setEditName}
@@ -285,13 +287,13 @@ export default function BookmarksIndexScreen() {
                   setEditFolderId(null);
                   setEditName('');
                 }}>
-                <Text style={[styles.modalBtnText, { color: colors.text }]}>취소</Text>
+                <Text style={[styles.modalBtnText, { color: colors.text }]}>{t('folder.cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.modalBtn, { backgroundColor: colors.primary }]}
                 onPress={handleUpdateFolder}
                 disabled={!editName.trim()}>
-                <Text style={[styles.modalBtnText, { color: '#fff' }]}>저장</Text>
+                <Text style={[styles.modalBtnText, { color: '#fff' }]}>{t('folder.save')}</Text>
               </TouchableOpacity>
             </View>
           </View>

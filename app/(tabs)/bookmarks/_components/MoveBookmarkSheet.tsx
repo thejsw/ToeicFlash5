@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, Modal, FlatList } from 'react
 import { BookmarkFolder } from '@/lib/supabase';
 import { Check } from 'lucide-react-native';
 import { useTheme } from '@/lib/theme';
+import { useTranslation } from 'react-i18next';
 
 type Props = {
   visible: boolean;
@@ -13,6 +14,7 @@ type Props = {
 };
 
 export default function MoveBookmarkSheet({ visible, folders, currentFolderId, onSelect, onClose }: Props) {
+  const { t } = useTranslation();
   const { colors } = useTheme();
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
   const targets = folders.filter((f) => f.id !== currentFolderId);
@@ -35,7 +37,7 @@ export default function MoveBookmarkSheet({ visible, folders, currentFolderId, o
           style={[styles.sheet, { backgroundColor: colors.surface }]}
           onStartShouldSetResponder={() => true}>
           <View style={[styles.handle, { backgroundColor: colors.border }]} />
-          <Text style={[styles.title, { color: colors.text }]}>폴더로 이동</Text>
+          <Text style={[styles.title, { color: colors.text }]}>{t('folder.moveTitle')}</Text>
           <FlatList
             data={targets}
             keyExtractor={(item) => item.id}
@@ -64,11 +66,11 @@ export default function MoveBookmarkSheet({ visible, folders, currentFolderId, o
             onPress={handleConfirmMove}
             disabled={!selectedFolderId}>
             <Text style={[styles.moveBtnText, { color: selectedFolderId ? '#fff' : colors.textSecondary }]}>
-              선택한 폴더로 이동
+              {t('folder.moveConfirm')}
             </Text>
           </TouchableOpacity>
           <TouchableOpacity style={[styles.cancelBtn, { backgroundColor: colors.border }]} onPress={onClose}>
-            <Text style={[styles.cancelText, { color: colors.text }]}>취소</Text>
+            <Text style={[styles.cancelText, { color: colors.text }]}>{t('folder.cancel')}</Text>
           </TouchableOpacity>
         </View>
       </TouchableOpacity>

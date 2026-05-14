@@ -14,17 +14,20 @@ import { useRouter } from 'expo-router';
 import { useTheme } from '@/lib/theme';
 import { useAuth } from '@/hooks/useAuth';
 import { getUserSettings, upsertUserSettings, ensureUserSettings, UserSettings } from '@/lib/supabase';
+import { syncI18nLanguageFromLearningLanguage } from '@/lib/i18n';
+import { useTranslation } from 'react-i18next';
 import { ArrowLeft, Globe, Bell, Trash2 } from 'lucide-react-native';
 
-const LANGUAGES = [
-  { code: 'ko', label: '한국어' },
-  { code: 'ja', label: '日本語' },
-];
-
 export default function SettingsScreen() {
+  const { t } = useTranslation();
   const { colors } = useTheme();
   const router = useRouter();
   const { user, deleteAccount, loading: authLoading } = useAuth();
+
+  const LANGUAGES = [
+    { code: 'ko' as const, labelKey: 'settings.langKo' as const },
+    { code: 'ja' as const, labelKey: 'settings.langJa' as const },
+  ];
 
   const [settings, setSettings] = useState<UserSettings | null>(null);
   const [loadingSettings, setLoadingSettings] = useState(true);
@@ -81,9 +84,10 @@ export default function SettingsScreen() {
     try {
       const updated = await upsertUserSettings(user.id, { learning_language: langCode });
       setSettings(updated);
+      syncI18nLanguageFromLearningLanguage(updated.learning_language);
     } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : '알 수 없는 오류';
-      Alert.alert('저장 실패', errorMessage);
+      const errorMessage = error instanceof Error ? error.message : t('settings.unknownError');
+      Alert.alert(t('settings.saveFail'), errorMessage);
     } finally {
       setSavingLanguage(false);
     }
@@ -96,8 +100,8 @@ export default function SettingsScreen() {
       const updated = await upsertUserSettings(user.id, { notification_enabled: value });
       setSettings(updated);
     } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : '알 수 없는 오류';
-      Alert.alert('저장 실패', errorMessage);
+      const errorMessage = error instanceof Error ? error.message : t('settings.unknownError');
+      Alert.alert(t('settings.saveFail'), errorMessage);
     } finally {
       setSavingNotification(false);
     }
@@ -107,23 +111,19 @@ export default function SettingsScreen() {
     console.log('[설정] click - 계정 삭제 버튼 눌림');
     // 웹에서는 Alert.alert가 동작하지 않으므로 window.confirm 사용
     if (Platform.OS === 'web' && typeof window !== 'undefined') {
-      const ok1 = window.confirm(
-        '계정 삭제\n\n정말로 계정을 삭제하시겠습니까?\n\n이 작업은 되돌릴 수 없으며, 모든 데이터가 삭제됩니다.'
-      );
+      const ok1 = window.confirm(t('settings.accountDeleteWebStep1'));
       if (!ok1) return;
-      const ok2 = window.confirm(
-        '최종 확인\n\n계정 삭제를 진행하면 다음 데이터가 모두 삭제됩니다:\n\n• 프로필 정보\n• 학습 진행 기록\n• 북마크\n• 설정\n\n정말 삭제하시겠습니까?'
-      );
+      const ok2 = window.confirm(t('settings.accountDeleteWebStep2'));
       if (ok2) performDeleteAccount();
       return;
     }
     Alert.alert(
-      '계정 삭제',
-      '정말로 계정을 삭제하시겠습니까?\n\n이 작업은 되돌릴 수 없으며, 모든 데이터가 삭제됩니다.',
+      t('settings.accountDeleteTitle'),
+      t('settings.accountDeleteMessage'),
       [
-        { text: '취소', style: 'cancel' },
+        { text: t('folder.cancel'), style: 'cancel' },
         {
-          text: '삭제',
+          text: t('settings.delete'),
           style: 'destructive',
           onPress: () => confirmDeleteAccount(),
         },
@@ -134,12 +134,12 @@ export default function SettingsScreen() {
   const confirmDeleteAccount = () => {
     console.log('[설정] start - confirmDeleteAccount (첫 번째 다이얼로그에서 삭제 클릭됨)');
     Alert.alert(
-      '최종 확인',
-      '계정 삭제를 진행하면 다음 데이터가 모두 삭제됩니다:\n\n• 프로필 정보\n• 학습 진행 기록\n• 북마크\n• 설정\n\n정말 삭제하시겠습니까?',
+      t('settings.accountDeleteFinalTitle'),
+      t('settings.accountDeleteFinalMessage'),
       [
-        { text: '취소', style: 'cancel' },
+        { text: t('folder.cancel'), style: 'cancel' },
         {
-          text: '영구 삭제',
+          text: t('settings.deletePermanently'),
           style: 'destructive',
           onPress: performDeleteAccount,
         },
@@ -159,11 +159,11 @@ export default function SettingsScreen() {
       }
     } catch (error: unknown) {
       console.error('[설정] performDeleteAccount catch:', error);
-      const errorMessage = error instanceof Error ? error.message : '알 수 없는 오류';
+      const errorMessage = error instanceof Error ? error.message : t('settings.unknownError');
       if (Platform.OS === 'web' && typeof window !== 'undefined') {
-        window.alert(`계정 삭제 실패\n\n${errorMessage}`);
+        window.alert(`${t('settings.deleteFail')}\n\n${errorMessage}`);
       } else {
-        Alert.alert('계정 삭제 실패', errorMessage);
+        Alert.alert(t('settings.deleteFail'), errorMessage);
       }
     } finally {
       setDeletingAccount(false);
@@ -175,7 +175,7 @@ export default function SettingsScreen() {
     return (
       <View style={[styles.container, styles.center, { backgroundColor: colors.background }]}>
         <Text style={[styles.errorText, { color: colors.textSecondary }]}>
-          로그인이 필요합니다.
+          {t('settings.loginRequired')}
         </Text>
       </View>
     );
@@ -196,23 +196,23 @@ export default function SettingsScreen() {
         <TouchableOpacity onPress={() => router.replace('/(tabs)/profile')} style={styles.backButton}>
           <ArrowLeft size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.text }]}>설정</Text>
+        <Text style={[styles.headerTitle, { color: colors.text }]}>{t('settings.title')}</Text>
         <View style={styles.headerRight} />
       </View>
 
       <ScrollView contentContainerStyle={styles.content}>
         {/* 학습 언어 */}
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>학습 언어</Text>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('settings.learningLanguage')}</Text>
         <View style={[styles.card, { backgroundColor: colors.surface }]}>
           <View style={styles.cardHeader}>
             <Globe size={20} color={colors.primary} />
-            <Text style={[styles.cardTitle, { color: colors.text }]}>콘텐츠 표시 언어</Text>
+            <Text style={[styles.cardTitle, { color: colors.text }]}>{t('settings.contentLanguageTitle')}</Text>
             {savingLanguage && (
               <ActivityIndicator size="small" color={colors.primary} style={styles.savingIndicator} />
             )}
           </View>
           <Text style={[styles.cardDescription, { color: colors.textSecondary }]}>
-            단어 뜻과 예문 번역에 사용할 언어를 선택하세요.
+            {t('settings.contentLanguageDesc')}
           </Text>
           <View style={styles.languageOptions}>
             {LANGUAGES.map((lang) => (
@@ -242,7 +242,7 @@ export default function SettingsScreen() {
                     },
                   ]}
                 >
-                  {lang.label}
+                  {t(lang.labelKey)}
                 </Text>
               </TouchableOpacity>
             ))}
@@ -250,15 +250,15 @@ export default function SettingsScreen() {
         </View>
 
         {/* 알림 설정 */}
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>알림</Text>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('settings.notifications')}</Text>
         <View style={[styles.card, { backgroundColor: colors.surface }]}>
           <View style={styles.notificationRow}>
             <View style={styles.notificationLeft}>
               <Bell size={20} color={colors.primary} />
               <View style={styles.notificationText}>
-                <Text style={[styles.cardTitle, { color: colors.text }]}>푸시 알림</Text>
+                <Text style={[styles.cardTitle, { color: colors.text }]}>{t('settings.pushTitle')}</Text>
                 <Text style={[styles.cardDescription, { color: colors.textSecondary }]}>
-                  학습 리마인더 및 주요 알림을 받습니다.
+                  {t('settings.pushDesc')}
                 </Text>
               </View>
             </View>
@@ -278,7 +278,7 @@ export default function SettingsScreen() {
         </View>
 
         {/* 위험 영역 */}
-        <Text style={[styles.sectionTitle, { color: colors.error ?? '#dc2626' }]}>위험 영역</Text>
+        <Text style={[styles.sectionTitle, { color: colors.error ?? '#dc2626' }]}>{t('settings.dangerZone')}</Text>
         <View style={[styles.card, { backgroundColor: colors.surface }]}>
           <TouchableOpacity
             style={styles.dangerRow}
@@ -289,10 +289,10 @@ export default function SettingsScreen() {
               <Trash2 size={20} color={colors.error ?? '#dc2626'} />
               <View style={styles.dangerText}>
                 <Text style={[styles.dangerTitle, { color: colors.error ?? '#dc2626' }]}>
-                  계정 삭제
+                  {t('settings.deleteAccount')}
                 </Text>
                 <Text style={[styles.dangerDescription, { color: colors.textSecondary }]}>
-                  모든 데이터가 영구적으로 삭제됩니다.
+                  {t('settings.deleteAccountDesc')}
                 </Text>
               </View>
             </View>
