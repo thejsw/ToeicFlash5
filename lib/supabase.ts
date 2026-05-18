@@ -127,7 +127,7 @@ export type BookmarkFolder = {
   created_at: string;
 };
 
-export const DEFAULT_FOLDER_NAME = '기본';
+export const DEFAULT_FOLDER_NAME = 'Bookmarked Words';
 
 // words / word_contents 단일 테이블 응답
 type WordRow = {
