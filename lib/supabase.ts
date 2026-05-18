@@ -2,7 +2,11 @@ import { createClient } from '@supabase/supabase-js';
 import Constants from 'expo-constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
+import * as Linking from 'expo-linking';
+import * as WebBrowser from 'expo-web-browser';
 import 'react-native-url-polyfill/auto';
+
+WebBrowser.maybeCompleteAuthSession();
 
 const GUEST_FOLDERS_KEY = 'bookmark_guest_folders';
 const GUEST_BOOKMARKS_KEY = 'bookmark_guest_bookmarks';
@@ -612,7 +616,70 @@ export async function getCurrentUserId(): Promise<string | null> {
   return session?.user?.id ?? null;
 }
 
+function getOAuthParamsFromUrl(url: string): URLSearchParams {
+  const parsedUrl = new URL(url);
+  const params = new URLSearchParams(parsedUrl.search);
+  const hashParams = new URLSearchParams(parsedUrl.hash.replace(/^#/, ''));
+
+  hashParams.forEach((value, key) => {
+    params.set(key, value);
+  });
+
+  return params;
+}
+
 export async function signInWithGoogle(redirectTo?: string) {
+  if (Platform.OS !== 'web') {
+    const nativeRedirectTo = redirectTo ?? Linking.createURL('auth/callback');
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: nativeRedirectTo,
+        skipBrowserRedirect: true,
+        queryParams: {
+          prompt: 'select_account',
+        },
+      },
+    });
+
+    if (error) throw error;
+    if (!data.url) {
+      throw new Error('Google login URL was not returned.');
+    }
+
+    const result = await WebBrowser.openAuthSessionAsync(data.url, nativeRedirectTo);
+    if (result.type !== 'success') {
+      throw new Error('Google login was cancelled.');
+    }
+
+    const params = getOAuthParamsFromUrl(result.url);
+    const accessToken = params.get('access_token');
+    const refreshToken = params.get('refresh_token');
+    const code = params.get('code');
+    const oauthError = params.get('error_description') ?? params.get('error');
+
+    if (oauthError) {
+      throw new Error(oauthError);
+    }
+
+    if (accessToken && refreshToken) {
+      const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
+        access_token: accessToken,
+        refresh_token: refreshToken,
+      });
+      if (sessionError) throw sessionError;
+      return sessionData;
+    }
+
+    if (code) {
+      const { data: sessionData, error: sessionError } = await supabase.auth.exchangeCodeForSession(code);
+      if (sessionError) throw sessionError;
+      return sessionData;
+    }
+
+    throw new Error('Google login did not return a Supabase session.');
+  }
+
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
     options: {
