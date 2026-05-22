@@ -17,10 +17,10 @@ const config: ExpoConfig = {
   ios: {
     supportsTablet: true,
     bundleIdentifier: 'com.thejsw.toeicflashcardvoca',
-  },
+      },
   android: {
     package: 'com.thejsw.toeicflashcardvoca',
-    versionCode: 20,
+    versionCode: 23,
     adaptiveIcon: {
       foregroundImage: './assets/images/Flash5Icon.png',
       backgroundColor: '#ffffff',
@@ -31,7 +31,7 @@ const config: ExpoConfig = {
     output: 'single',
     favicon: './assets/images/Flash5Icon.png',
   },
-  plugins: ['expo-router', 'expo-font', 'expo-web-browser'],
+  plugins: ['expo-router', 'expo-font', 'expo-web-browser', 'expo-localization'],
   experiments: {
     typedRoutes: true,
   },

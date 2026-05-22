@@ -1,22 +1,41 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
-const OPENAI_API_URL = 'https://api.openai.com/v1/chat/completions';
-const WEEKLY_MOCK_TYPE = 'weekly_mock_light';
-const ORDER_KEYS = ['A', 'B', 'C', 'D'];
+const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
+const CRON_SECRET = Deno.env.get("CRON_SECRET");
+const OPENAI_API_URL = "https://api.openai.com/v1/chat/completions";
+const OPENAI_MODEL = Deno.env.get("OPENAI_WEEKLY_QUIZ_MODEL") ?? "gpt-4o-mini";
+const WEEKLY_MOCK_TYPE = "weekly_mock_light";
+const ORDER_KEYS = ["A", "B", "C", "D"];
 const ORDER_INDEX_BASE = 5001;
+const REQUIRED_QUESTION_COUNT = 10;
+const REQUIRED_CHOICE_COUNT = 4;
 
-/** Fisher-Yates shuffle (정답이 A/B/C/D에 골고루 나오도록) */
-function shuffleArray<T>(arr: T[], seed?: number): T[] {
-  const out = [...arr];
-  const rng = seed != null ? seededRandom(seed) : Math.random;
-  for (let i = out.length - 1; i > 0; i--) {
-    const j = Math.floor(rng() * (i + 1));
-    [out[i], out[j]] = [out[j], out[i]];
-  }
-  return out;
+type GeneratedQuestion = {
+  question: string;
+  choices: string[];
+  answer: string;
+  explanation: string;
+  explanations: {
+    ko: string;
+    jp: string;
+  };
+};
+
+type LogStatus = "started" | "success" | "already_exists" | "failed" | "unauthorized";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-cron-secret",
+};
+
+function jsonResponse(body: object, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
 }
+
 function seededRandom(seed: number) {
   return () => {
     seed = (seed * 9301 + 49297) % 233280;
@@ -24,116 +43,233 @@ function seededRandom(seed: number) {
   };
 }
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+function shuffleArray<T>(arr: T[], seed: number): T[] {
+  const out = [...arr];
+  const rng = seededRandom(seed);
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
+}
 
-function jsonResponse(body: object, status = 200) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+function getKstWeekNum(date = new Date()): number {
+  const kst = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  const year = Number(kst.find((p) => p.type === "year")?.value);
+  const month = Number(kst.find((p) => p.type === "month")?.value);
+  const day = Number(kst.find((p) => p.type === "day")?.value);
+  const week = day <= 7 ? 1 : day <= 14 ? 2 : day <= 21 ? 3 : day <= 28 ? 4 : 5;
+  return year * 1000 + month * 10 + week;
+}
+
+function resolveWeekNum(body: Record<string, unknown>): number {
+  const rawWeekNum = Number(body.weekNum);
+  if (Number.isInteger(rawWeekNum) && rawWeekNum > 0) return rawWeekNum;
+
+  const year = Number(body.year);
+  const month = Number(body.month);
+  const week = Number(body.week);
+  if (
+    Number.isInteger(year) &&
+    Number.isInteger(month) &&
+    Number.isInteger(week) &&
+    year > 2000 &&
+    month >= 1 &&
+    month <= 12 &&
+    week >= 1 &&
+    week <= 5
+  ) {
+    return year * 1000 + month * 10 + week;
+  }
+
+  return getKstWeekNum();
+}
+
+function validateGeneratedQuestions(rawQuestions: unknown[], weekNum: number): GeneratedQuestion[] {
+  if (rawQuestions.length !== REQUIRED_QUESTION_COUNT) {
+    throw new Error(`Expected exactly ${REQUIRED_QUESTION_COUNT} questions, received ${rawQuestions.length}`);
+  }
+
+  return rawQuestions.map((raw, index) => {
+    const q = raw as Record<string, unknown>;
+    const question = String(q.question ?? "").trim();
+    const rawExplanations = q.explanations as Record<string, unknown> | undefined;
+    const explanationKo = String(rawExplanations?.ko ?? q.explanationKo ?? q.explanation ?? "").trim();
+    const explanationJp = String(rawExplanations?.jp ?? q.explanationJp ?? "").trim();
+    const answer = String(q.answer ?? "").trim();
+    const choices = Array.isArray(q.choices)
+      ? q.choices.map((choice) => String(choice ?? "").trim()).filter(Boolean)
+      : [];
+
+    if (!question) throw new Error(`Question ${index + 1} is missing question text`);
+    if (!explanationKo) throw new Error(`Question ${index + 1} is missing Korean explanation`);
+    if (!explanationJp) throw new Error(`Question ${index + 1} is missing Japanese explanation`);
+    if (choices.length !== REQUIRED_CHOICE_COUNT) {
+      throw new Error(`Question ${index + 1} must have exactly ${REQUIRED_CHOICE_COUNT} choices`);
+    }
+    if (new Set(choices).size !== REQUIRED_CHOICE_COUNT) {
+      throw new Error(`Question ${index + 1} has duplicate choices`);
+    }
+    if (!choices.includes(answer)) {
+      throw new Error(`Question ${index + 1} answer must match one of the choices exactly`);
+    }
+
+    const shuffled = shuffleArray(choices, weekNum * 10 + index);
+    return {
+      question,
+      choices: shuffled,
+      answer,
+      explanation: explanationKo,
+      explanations: { ko: explanationKo, jp: explanationJp },
+    };
   });
 }
 
+async function logGeneration(
+  supabase: any,
+  status: LogStatus,
+  values: {
+    weekNum?: number | null;
+    quizId?: string | null;
+    errorMessage?: string | null;
+    metadata?: Record<string, unknown>;
+  } = {}
+) {
+  try {
+    await supabase.from("weekly_quiz_generation_logs").insert({
+      week_num: values.weekNum ?? null,
+      quiz_id: values.quizId ?? null,
+      status,
+      error_message: values.errorMessage ?? null,
+      metadata: values.metadata ?? {},
+    });
+  } catch (error) {
+    console.warn("Failed to write weekly quiz generation log:", error);
+  }
+}
+
+async function cleanupPartialQuiz(
+  supabase: any,
+  quizId: string,
+  questionIds: string[]
+) {
+  if (questionIds.length > 0) {
+    await supabase.from("quiz_choices").delete().in("question_id", questionIds);
+    await supabase.from("quiz_explanations").delete().in("question_id", questionIds);
+    await supabase.from("quiz_questions").delete().in("id", questionIds);
+  }
+  await supabase.from("quizzes").delete().eq("id", quizId);
+}
+
 serve(async (req: Request) => {
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
   }
 
+  const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  const supabase =
+    supabaseUrl && serviceRoleKey ? createClient(supabaseUrl, serviceRoleKey) : null;
+  let weekNum: number | null = null;
+
   try {
-    if (!OPENAI_API_KEY) {
-      throw new Error('OPENAI_API_KEY is not configured');
+    if (!supabaseUrl || !serviceRoleKey || !supabase) {
+      throw new Error("SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set in Edge Function secrets");
     }
 
-    const supabaseUrl = Deno.env.get('SUPABASE_URL');
-    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-    if (!supabaseUrl || !serviceRoleKey) {
-      throw new Error('SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set in Edge Function secrets');
+    if (!CRON_SECRET) {
+      throw new Error("CRON_SECRET is not configured");
     }
-    const supabase = createClient(supabaseUrl, serviceRoleKey);
+
+    if (req.headers.get("x-cron-secret") !== CRON_SECRET) {
+      await logGeneration(supabase, "unauthorized", {
+        errorMessage: "Invalid or missing x-cron-secret",
+      });
+      return jsonResponse({ error: "Unauthorized" }, 401);
+    }
+
+    if (!OPENAI_API_KEY) {
+      throw new Error("OPENAI_API_KEY is not configured");
+    }
 
     const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
-    let weekNum = body?.weekNum as number | undefined;
-    const year = body?.year as number | undefined;
-    const month = body?.month as number | undefined;
-    const week = body?.week as number | undefined;
+    weekNum = resolveWeekNum(body);
+    await logGeneration(supabase, "started", {
+      weekNum,
+      metadata: { model: OPENAI_MODEL },
+    });
 
-    if (weekNum == null && (year == null || month == null || week == null)) {
-      const now = new Date();
-      const y = now.getFullYear();
-      const m = now.getMonth() + 1;
-      const d = now.getDate();
-      const w = d <= 7 ? 1 : d <= 14 ? 2 : d <= 21 ? 3 : d <= 28 ? 4 : 5;
-      weekNum = y * 1000 + m * 10 + w;
-    } else if (year != null && month != null && week != null) {
-      weekNum = year * 1000 + month * 10 + week;
-    }
-
-    if (weekNum == null) {
-      return jsonResponse(
-        { error: 'Invalid request: weekNum or (year, month, week) are required' },
-        400
-      );
-    }
-
-    const { data: existing } = await supabase
-      .from('quizzes')
-      .select('id')
-      .eq('type', WEEKLY_MOCK_TYPE)
-      .eq('week_num', weekNum)
+    const { data: existing, error: existingErr } = await supabase
+      .from("quizzes")
+      .select("id, created_at")
+      .eq("type", WEEKLY_MOCK_TYPE)
+      .eq("week_num", weekNum)
       .limit(1)
       .maybeSingle();
+
+    if (existingErr) throw existingErr;
     if (existing?.id) {
-      return jsonResponse(
-        { error: '이미 해당 주차 모의고사가 존재합니다. 중복 생성되지 않습니다.', alreadyExists: true },
-        409
-      );
+      await logGeneration(supabase, "already_exists", {
+        weekNum,
+        quizId: existing.id,
+      });
+      return jsonResponse({
+        alreadyExists: true,
+        quiz_id: existing.id,
+        created_at: existing.created_at,
+      });
     }
 
-    const label = `주차번호 ${weekNum}`;
+    const label = `week number ${weekNum}`;
     const prompt = `You are creating a TOEIC PART 5 style vocabulary mock test.
 
 Target: ${label}
 Create exactly 10 multiple-choice questions with the following requirements:
-1. Each question must be a TOEIC PART 5 style sentence completion (single blank in a sentence).
-2. Focus on vocabulary (word choice, collocation, meaning in context). Do NOT make grammar-only questions.
-3. Do NOT directly ask "What is the meaning of X?" — use the word in a natural sentence with a blank.
-4. Each question has exactly 4 choices (A, B, C, D). Only one answer is correct.
-5. Include a brief explanation in Korean for each question.
-6. Questions should feel like real TOEIC exam questions (business/office/formal context preferred).
+1. Each question must be a TOEIC PART 5 style sentence completion with one blank.
+2. Focus on vocabulary: word choice, collocation, and meaning in context. Do not make grammar-only questions.
+3. Do not ask "What is the meaning of X?". Use the word naturally in a sentence with a blank.
+4. Each question has exactly 4 choices. Only one answer is correct.
+5. Include brief explanations in both Korean and Japanese for each question.
+6. Questions should feel like real TOEIC exam questions in business, office, or formal contexts.
 
-Return a JSON object with a "questions" key containing an array of exactly 10 questions. Format:
+Return only valid JSON:
 {
   "questions": [
     {
-      "question": "Complete sentence with _____ blank",
+      "question": "Sentence with a _____ blank.",
       "choices": ["choice A", "choice B", "choice C", "choice D"],
       "answer": "correct choice text exactly as in choices",
-      "explanation": "Brief explanation in Korean"
+      "explanations": {
+        "ko": "Brief explanation in Korean",
+        "jp": "Brief explanation in Japanese"
+      }
     }
   ]
-}
-Return only valid JSON.`;
+}`;
 
     const response = await fetch(OPENAI_API_URL, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
         Authorization: `Bearer ${OPENAI_API_KEY}`,
       },
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
+        model: OPENAI_MODEL,
         messages: [
           {
-            role: 'system',
+            role: "system",
             content:
               'You are a TOEIC test question creator. Return only valid JSON with a "questions" array. No markdown or code blocks.',
           },
-          { role: 'user', content: prompt },
+          { role: "user", content: prompt },
         ],
         temperature: 0.7,
-        response_format: { type: 'json_object' },
+        response_format: { type: "json_object" },
       }),
     });
 
@@ -143,120 +279,119 @@ Return only valid JSON.`;
     }
 
     const data = await response.json();
-    const content = data.choices[0]?.message?.content;
+    const content = data.choices?.[0]?.message?.content;
+    if (!content) throw new Error("No content in API response");
 
-    if (!content) {
-      throw new Error('No content in API response');
-    }
-
-    let parsedContent: { questions?: unknown[] };
-    try {
-      parsedContent = JSON.parse(content);
-    } catch {
-      throw new Error('Failed to parse JSON response');
-    }
-
-    let questions: unknown[];
-    if (Array.isArray(parsedContent.questions)) {
-      questions = parsedContent.questions;
-    } else if (Array.isArray(parsedContent)) {
-      questions = parsedContent;
-    } else {
+    const parsedContent = JSON.parse(content) as { questions?: unknown[] };
+    if (!Array.isArray(parsedContent.questions)) {
       throw new Error('Invalid response format: expected object with "questions" array');
     }
 
-    const validatedQuestions = (questions as any[])
-      .filter((q: any) => q && q.question && q.choices && Array.isArray(q.choices) && q.answer != null)
-      .slice(0, 10)
-      .map((q: any, index: number) => {
-        const choices = (q.choices ?? []).map((c: any) => String(c).trim()).filter(Boolean);
-        const answerText = String(q.answer ?? '').trim();
-        const shuffled = shuffleArray(choices, weekNum * 10 + index);
-        return {
-          question: String(q.question ?? '').trim(),
-          choices: shuffled,
-          answer: answerText,
-          explanation: String(q.explanation ?? '').trim(),
-        };
-      });
-
-    if (validatedQuestions.length === 0) {
-      throw new Error('No valid questions generated');
-    }
+    const validatedQuestions = validateGeneratedQuestions(parsedContent.questions, weekNum);
 
     const { data: wordRow, error: wordErr } = await supabase
-      .from('words')
-      .select('id')
+      .from("words")
+      .select("id")
       .limit(1)
       .maybeSingle();
     if (wordErr || !wordRow?.id) {
-      throw new Error('words 테이블에 단어가 없어 주차 퀴즈를 저장할 수 없습니다.');
+      throw new Error("words table has no row available for weekly quiz placeholder word_id");
     }
-    const placeholderWordId = wordRow.id;
 
-    const createdAt = new Date().toISOString();
     const { data: quizRow, error: quizErr } = await supabase
-      .from('quizzes')
+      .from("quizzes")
       .insert({
         type: WEEKLY_MOCK_TYPE,
         week_num: weekNum,
-        created_at: createdAt,
+        created_at: new Date().toISOString(),
       })
-      .select('id, created_at')
+      .select("id, created_at")
       .single();
+
     if (quizErr || !quizRow?.id) {
-      throw new Error(quizErr?.message ?? 'quizzes insert failed');
-    }
-    const quizId = quizRow.id;
-
-    for (let i = 0; i < validatedQuestions.length; i++) {
-      const q = validatedQuestions[i];
-      const questionOrderIndex = ORDER_INDEX_BASE + i;
-      const { data: questionRow, error: qErr } = await supabase
-        .from('quiz_questions')
-        .insert({
-          word_id: placeholderWordId,
-          quiz_id: quizId,
-          question_text: q.question,
-          order_index: questionOrderIndex,
-        })
-        .select('id')
-        .single();
-      if (qErr || !questionRow?.id) {
-        throw new Error(qErr?.message ?? 'quiz_questions insert failed');
-      }
-      const questionId = questionRow.id;
-
-      const choices = q.choices ?? [];
-      const answerText = (q.answer ?? '').trim();
-      for (let j = 0; j < choices.length; j++) {
-        const choiceText = String(choices[j] ?? '').trim();
-        if (!choiceText) continue;
-        const { error: cErr } = await supabase.from('quiz_choices').insert({
-          question_id: questionId,
-          choice_key: ORDER_KEYS[j] ?? String.fromCharCode(65 + j),
-          choice_text: choiceText,
-          is_correct: choiceText === answerText,
+      if (quizErr?.code === "23505") {
+        await logGeneration(supabase, "already_exists", {
+          weekNum,
+          errorMessage: quizErr.message,
         });
-        if (cErr) throw new Error(cErr.message);
+        return jsonResponse({ alreadyExists: true });
       }
-
-      const { error: exErr } = await supabase.from('quiz_explanations').insert({
-        question_id: questionId,
-        language: 'ko',
-        explanation: q.explanation ?? '',
-      });
-      if (exErr) throw new Error(exErr.message);
+      throw new Error(quizErr?.message ?? "quizzes insert failed");
     }
+
+    const createdQuestionIds: string[] = [];
+    try {
+      for (let i = 0; i < validatedQuestions.length; i++) {
+        const q = validatedQuestions[i];
+        const { data: questionRow, error: qErr } = await supabase
+          .from("quiz_questions")
+          .insert({
+            word_id: wordRow.id,
+            quiz_id: quizRow.id,
+            question_text: q.question,
+            order_index: ORDER_INDEX_BASE + i,
+          })
+          .select("id")
+          .single();
+
+        if (qErr || !questionRow?.id) {
+          throw new Error(qErr?.message ?? "quiz_questions insert failed");
+        }
+        createdQuestionIds.push(questionRow.id);
+
+        for (let j = 0; j < q.choices.length; j++) {
+          const choiceText = q.choices[j];
+          const { error: cErr } = await supabase.from("quiz_choices").insert({
+            question_id: questionRow.id,
+            choice_key: ORDER_KEYS[j],
+            choice_text: choiceText,
+            is_correct: choiceText === q.answer,
+          });
+          if (cErr) throw new Error(cErr.message);
+        }
+
+        const { error: exErr } = await supabase.from("quiz_explanations").insert([
+          {
+            question_id: questionRow.id,
+            language: "ko",
+            explanation: q.explanations.ko,
+          },
+          {
+            question_id: questionRow.id,
+            language: "jp",
+            explanation: q.explanations.jp,
+          },
+        ]);
+        if (exErr) throw new Error(exErr.message);
+      }
+    } catch (insertError) {
+      await cleanupPartialQuiz(supabase, quizRow.id, createdQuestionIds);
+      throw insertError;
+    }
+
+    await logGeneration(supabase, "success", {
+      weekNum,
+      quizId: quizRow.id,
+      metadata: {
+        questionCount: validatedQuestions.length,
+        model: OPENAI_MODEL,
+      },
+    });
 
     return jsonResponse({
+      quiz_id: quizRow.id,
       questions: validatedQuestions,
-      created_at: quizRow.created_at ?? createdAt,
+      created_at: quizRow.created_at,
     });
   } catch (error: unknown) {
-    console.error('Error generating weekly quiz:', error);
-    const errorMessage =
-      error instanceof Error ? error.message : 'Internal server error';
+    console.error("Error generating weekly quiz:", error);
+    const errorMessage = error instanceof Error ? error.message : "Internal server error";
+    if (supabase) {
+      await logGeneration(supabase, "failed", {
+        weekNum,
+        errorMessage,
+      });
+    }
     return jsonResponse({ error: errorMessage }, 500);
   }
 });

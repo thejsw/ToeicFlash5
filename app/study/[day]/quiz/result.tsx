@@ -6,16 +6,21 @@ import { ChevronLeft, CheckCircle, XCircle } from 'lucide-react-native';
 import { QuizQuestion, QuizResult } from '@/types/quiz';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getCurrentUserId, upsertUserProgress } from '@/lib/supabase';
+import { useTranslation } from 'react-i18next';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function DayQuizResultScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const { day, questions: questionsParam, userAnswers: userAnswersParam } =
     useLocalSearchParams<{
       day: string;
       questions: string;
       userAnswers: string;
-    }>();
+  }>();
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
+  const bottomInset = Math.max(insets.bottom, 0);
 
   const [results, setResults] = useState<QuizResult[]>([]);
   const [score, setScore] = useState(0);
@@ -79,13 +84,13 @@ export default function DayQuizResultScreen() {
         <TouchableOpacity onPress={handleGoHome} style={styles.backButton}>
           <ChevronLeft size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.text }]}>퀴즈 결과</Text>
+        <Text style={[styles.headerTitle, { color: colors.text }]}>{t('quizResult.title')}</Text>
         <View style={{ width: 40 }} />
       </View>
 
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
         <View style={[styles.scoreContainer, { backgroundColor: colors.surface }]}>
-          <Text style={[styles.scoreLabel, { color: colors.textSecondary }]}>점수</Text>
+          <Text style={[styles.scoreLabel, { color: colors.textSecondary }]}>{t('quizResult.score')}</Text>
           <Text style={[styles.scoreText, { color: colors.primary }]}>
             {score} / {results.length}
           </Text>
@@ -101,7 +106,9 @@ export default function DayQuizResultScreen() {
                 key={index}
                 style={[styles.resultCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
                 <View style={styles.resultHeader}>
-                  <Text style={[styles.resultNumber, { color: colors.text }]}>문제 {index + 1}</Text>
+                  <Text style={[styles.resultNumber, { color: colors.text }]}>
+                    {t('quiz.questionLabel', { n: index + 1 })}
+                  </Text>
                   {result.isCorrect ? (
                     <CheckCircle size={24} color={colors.success || '#10b981'} />
                   ) : (
@@ -109,14 +116,12 @@ export default function DayQuizResultScreen() {
                   )}
                 </View>
 
-                <Text style={[styles.resultQuestion, { color: colors.text }]}>
-                  {result.question}
-                </Text>
+                <Text style={[styles.resultQuestion, { color: colors.text }]}>{result.question}</Text>
 
                 <View style={styles.answerSection}>
                   <View style={styles.answerRow}>
                     <Text style={[styles.answerLabel, { color: colors.textSecondary }]}>
-                      내 답안:
+                      {t('quizResult.myAnswer')}
                     </Text>
                     <Text
                       style={[
@@ -130,7 +135,7 @@ export default function DayQuizResultScreen() {
                   {!result.isCorrect && (
                     <View style={styles.answerRow}>
                       <Text style={[styles.answerLabel, { color: colors.textSecondary }]}>
-                        정답:
+                        {t('quizResult.correct')}
                       </Text>
                       <Text style={[styles.answerText, { color: colors.primary }]}>
                         {getChoiceLabel(result.correctAnswer, choices)}. {result.correctAnswer}
@@ -141,11 +146,9 @@ export default function DayQuizResultScreen() {
 
                 <View style={[styles.explanationContainer, { backgroundColor: colors.background }]}>
                   <Text style={[styles.explanationLabel, { color: colors.textSecondary }]}>
-                    해설
+                    {t('quizResult.explanation')}
                   </Text>
-                  <Text style={[styles.explanationText, { color: colors.text }]}>
-                    {result.explanation}
-                  </Text>
+                  <Text style={[styles.explanationText, { color: colors.text }]}>{result.explanation}</Text>
                 </View>
               </View>
             );
@@ -153,16 +156,22 @@ export default function DayQuizResultScreen() {
         </View>
       </ScrollView>
 
-      <View style={[styles.footer, { backgroundColor: colors.surface, borderTopColor: colors.border }]}>
-        <TouchableOpacity
-          style={[styles.button, { borderColor: colors.border }]}
-          onPress={handleRetry}>
-          <Text style={[styles.buttonText, { color: colors.text }]}>다시 풀기</Text>
+      <View
+        style={[
+          styles.footer,
+          {
+            backgroundColor: colors.surface,
+            borderTopColor: colors.border,
+            paddingBottom: 16 + bottomInset,
+          },
+        ]}>
+        <TouchableOpacity style={[styles.button, { borderColor: colors.border }]} onPress={handleRetry}>
+          <Text style={[styles.buttonText, { color: colors.text }]}>{t('quizResult.retry')}</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.button, styles.buttonPrimary, { backgroundColor: colors.primary }]}
           onPress={handleGoHome}>
-          <Text style={[styles.buttonText, styles.buttonTextPrimary]}>홈으로</Text>
+          <Text style={[styles.buttonText, styles.buttonTextPrimary]}>{t('quizResult.home')}</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -287,5 +296,3 @@ const styles = StyleSheet.create({
     color: '#ffffff',
   },
 });
-
-

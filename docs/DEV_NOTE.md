@@ -123,10 +123,12 @@
 
 - functions/generate-weekly-quiz  
   - 주차별 TOEIC Part 5 어휘 10문항 생성 후 **Edge Function에서 Service Role로 DB 직접 insert** (RLS 우회)  
-  - **필수 시크릿**: `OPENAI_API_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` (대시보드 → Edge Functions → generate-weekly-quiz → Secrets)  
+  - **필수 시크릿**: `OPENAI_API_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `CRON_SECRET`
   - **자동 생성 (cron)**: 매주 월요일 00:30 KST에 pg_cron으로 자동 호출 → 모든 유저 공통 퀴즈  
+  - **보안**: `verify_jwt = false`이지만 `x-cron-secret` 헤더가 `CRON_SECRET`과 일치할 때만 실행
+  - **중복 방지/로그**: `quizzes(type, week_num)` unique index와 `weekly_quiz_generation_logs` 사용
   - **cron 설정**: `docs/CRON_SETUP.md` 참고 (Vault 시크릿, pg_cron/pg_net 확장)  
-  - **대시보드 테스트**: Request Body `{}` 또는 `{ "weekNum": 2026021 }`  
+  - **대시보드 테스트**: `x-cron-secret` 헤더와 Request Body `{}` 또는 `{ "weekNum": 2026021 }`
   - **localhost에서 401**: `npm run deploy:weekly-quiz` 로 재배포 (--no-verify-jwt)
 
 - functions/delete-user  

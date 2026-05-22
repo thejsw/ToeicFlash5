@@ -1,0 +1,172 @@
+{
+  "bookmark": {
+    "create": "북마크 생성",
+    "move": "북마크 이동",
+    "delete": "북마크 삭제"
+  },
+  "tabs": {
+    "home": "홈",
+    "bookmarks": "북마크",
+    "profile": "프로필",
+    "test": "테스트"
+  },
+  "home": {
+    "subtitle": "학습할 Day를 선택하세요",
+    "dayLabel": "Day {{day}}",
+    "wordProgress": "{{current}} / {{total}} 단어"
+  },
+  "flashcard": {
+    "english": "English",
+    "tapHint": "탭하면 뜻이 보여요",
+    "meaning": "뜻",
+    "exampleEn": "예문 (영어)",
+    "exampleLocal": "예문 (한국어)"
+  },
+  "study": {
+    "dayHeader": "Day {{day}}",
+    "previous": "이전",
+    "next": "다음",
+    "dayComplete": "Day 학습 완료"
+  },
+  "studyComplete": {
+    "title": "Day {{day}} 완료",
+    "prompt": "오늘 배운 단어로 문제를 풀어볼까요?",
+    "startQuiz": "문제 풀기",
+    "studyAgain": "다시 학습하기"
+  },
+  "quiz": {
+    "loading": "문제를 불러오는 중...",
+    "dayTitle": "Day {{day}} 퀴즈",
+    "next": "다음 문제",
+    "viewResults": "결과 보기",
+    "questionLabel": "문제 {{n}}",
+    "noQuestionsForDay": "해당 Day의 퀴즈가 없습니다.",
+    "loadError": "퀴즈를 불러오는 중 오류가 발생했습니다.",
+    "selectAnswer": "정답을 선택해주세요.",
+    "cannotLoad": "문제를 불러올 수 없습니다.",
+    "retry": "다시 시도"
+  },
+  "quizResult": {
+    "title": "퀴즈 결과",
+    "score": "점수",
+    "myAnswer": "내 답안:",
+    "correct": "정답:",
+    "explanation": "해설",
+    "retry": "다시 풀기",
+    "home": "홈으로"
+  },
+  "alert": {
+    "error": "오류",
+    "notice": "알림"
+  },
+  "folder": {
+    "headerTitle": "북마크 폴더",
+    "manageTitle": "폴더 관리",
+    "create": "폴더 생성",
+    "rename": "폴더 이름 수정",
+    "delete": "폴더 삭제",
+    "moveTitle": "폴더로 이동",
+    "moveConfirm": "선택한 폴더로 이동",
+    "selectRenameTitle": "이름을 변경할 폴더 선택",
+    "selectDeleteTitle": "삭제할 폴더 선택",
+    "renameConfirm": "선택한 폴더 이름 수정",
+    "deleteConfirm": "선택한 폴더 삭제",
+    "namePlaceholder": "폴더 이름",
+    "newFolder": "새 폴더",
+    "renameModalTitle": "폴더 이름 변경",
+    "deleteModalTitle": "폴더 삭제",
+    "deleteModalMessage": "\"{{name}}\" 폴더를 삭제할까요? 안에 있는 북마크는 기본 폴더로 이동됩니다.",
+    "save": "저장",
+    "createSubmit": "만들기",
+    "cancel": "취소",
+    "deleteSubmit": "삭제",
+    "createError": "폴더 생성에 실패했습니다.",
+    "renameError": "폴더 이름 변경에 실패했습니다.",
+    "deleteError": "폴더 삭제에 실패했습니다.",
+    "removeBookmarkError": "폴더에서 제거에 실패했습니다.",
+    "moveBookmarkError": "이동에 실패했습니다.",
+    "emptyFolder": "이 폴더에 북마크가 없습니다"
+  },
+  "bookmarkPicker": {
+    "title": "북마크 폴더 선택",
+    "saveToCount": "선택한 폴더 {{count}}개에 저장",
+    "selectPrompt": "폴더를 선택하세요",
+    "creating": "..."
+  },
+  "profile": {
+    "title": "프로필",
+    "loginTitle": "로그인하기",
+    "loginSubtitle": "학습 진도와 북마크를 저장하고\n여러 기기에서 동기화하세요.",
+    "googleContinue": "Google로 계속하기",
+    "guestInfo": "비로그인 상태에서도 학습, 북마크, 테스트를 이용할 수 있습니다.",
+    "defaultUser": "사용자",
+    "statsSection": "학습 현황",
+    "dayProgressLabel": "Day 진행도",
+    "dayProgressComplete": "{{total}}일 학습 완료",
+    "dayProgressPartial": "{{completed}} / {{total}} 일 학습",
+    "weeklyMockLabel": "주차별 모의고사",
+    "weeklyMockHas": "{{count}}개 주차 응시 가능",
+    "weeklyMockNone": "응시 가능한 모의고사 없음",
+    "settingsSection": "설정",
+    "appSettings": "앱 설정",
+    "signOut": "로그아웃",
+    "loginFail": "로그인 실패",
+    "signOutConfirm": "정말 로그아웃 하시겠습니까?",
+    "signOutTitle": "로그아웃"
+  },
+  "settings": {
+    "title": "설정",
+    "loginRequired": "로그인이 필요합니다.",
+    "learningLanguage": "학습 언어",
+    "contentLanguageTitle": "콘텐츠 표시 언어",
+    "contentLanguageDesc": "단어 뜻과 예문 번역에 사용할 언어를 선택하세요.",
+    "langKo": "한국어",
+    "langJa": "日本語",
+    "notifications": "알림",
+    "pushTitle": "푸시 알림",
+    "pushDesc": "학습 리마인더 및 주요 알림을 받습니다.",
+    "dangerZone": "위험 영역",
+    "deleteAccount": "계정 삭제",
+    "deleteAccountDesc": "모든 데이터가 영구적으로 삭제됩니다.",
+    "saveFail": "저장 실패",
+    "deleteFail": "계정 삭제 실패",
+    "unknownError": "알 수 없는 오류",
+    "accountDeleteTitle": "계정 삭제",
+    "accountDeleteMessage": "정말로 계정을 삭제하시겠습니까?\n\n이 작업은 되돌릴 수 없으며, 모든 데이터가 삭제됩니다.",
+    "accountDeleteFinalTitle": "최종 확인",
+    "accountDeleteFinalMessage": "계정 삭제를 진행하면 다음 데이터가 모두 삭제됩니다:\n\n• 프로필 정보\n• 학습 진행 기록\n• 북마크\n• 설정\n\n정말 삭제하시겠습니까?",
+    "accountDeleteWebStep1": "계정 삭제\n\n정말로 계정을 삭제하시겠습니까?\n\n이 작업은 되돌릴 수 없으며, 모든 데이터가 삭제됩니다.",
+    "accountDeleteWebStep2": "최종 확인\n\n계정 삭제를 진행하면 다음 데이터가 모두 삭제됩니다:\n\n• 프로필 정보\n• 학습 진행 기록\n• 북마크\n• 설정\n\n정말 삭제하시겠습니까?",
+    "deletePermanently": "영구 삭제",
+    "delete": "삭제"
+  },
+  "notFound": {
+    "title": "앗!",
+    "message": "이 화면은 존재하지 않습니다.",
+    "goHome": "홈으로 이동"
+  },
+  "testTab": {
+    "title": "테스트",
+    "subtitle": "주차별 TOEIC Part 5 어휘 모의고사",
+    "savedQuiz": "저장된 모의고사입니다. 다시 풀어볼 수 있습니다.",
+    "thisWeekQuiz": "이번 주 모의고사",
+    "preparing": "준비 중",
+    "preparingBody": "이번 주 모의고사는 매주 월요일 00:30에 자동 생성됩니다. 아직 준비되지 않았습니다.",
+    "start": "시작",
+    "startOver": "시작하기",
+    "retryList": "다시 풀어보기",
+    "createFail": "생성 실패",
+    "createFailBody": "{{msg}}\n\n{{hint}}",
+    "createFailHint": "Supabase 대시보드에서 Edge Function \"generate-weekly-quiz\" 배포 여부와 시크릿(OPENAI_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY) 설정을 확인해주세요.",
+    "createFailGeneric": "주차 모의고사를 생성하는 중 오류가 발생했습니다."
+  },
+  "weeklyQuiz": {
+    "defaultTitle": "주차 모의고사",
+    "invalidWeek": "잘못된 주차입니다.",
+    "noQuiz": "해당 주차의 모의고사가 아직 준비되지 않았습니다.",
+    "loadError": "퀴즈를 불러오는 중 오류가 발생했습니다."
+  },
+  "errors": {
+    "requestTimeout": "요청 시간이 초과되었습니다."
+  }
+}

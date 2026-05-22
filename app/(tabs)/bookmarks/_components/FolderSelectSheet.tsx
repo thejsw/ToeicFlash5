@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Modal, FlatList } from 'react-native';
-import { BookmarkFolder } from '@/lib/supabase';
+import { BookmarkFolder, DEFAULT_FOLDER_NAME } from '@/lib/supabase';
 import { Check } from 'lucide-react-native';
 import { useTheme } from '@/lib/theme';
-import { DEFAULT_FOLDER_NAME } from '@/lib/supabase';
+import { useTranslation } from 'react-i18next';
 
 type Props = {
   visible: boolean;
@@ -20,6 +20,7 @@ export default function FolderSelectSheet({
   onClose,
   onConfirm,
 }: Props) {
+  const { t } = useTranslation();
   const { colors } = useTheme();
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
 
@@ -56,7 +57,7 @@ export default function FolderSelectSheet({
           onStartShouldSetResponder={() => true}>
           <View style={[styles.handle, { backgroundColor: colors.border }]} />
           <Text style={[styles.title, { color: colors.text }]}>
-            {mode === 'rename' ? '이름을 변경할 폴더 선택' : '삭제할 폴더 선택'}
+            {mode === 'rename' ? t('folder.selectRenameTitle') : t('folder.selectDeleteTitle')}
           </Text>
           <FlatList
             data={list}
@@ -106,11 +107,11 @@ export default function FolderSelectSheet({
                       : colors.textSecondary,
                 },
               ]}>
-              {mode === 'rename' ? '선택한 폴더 이름 수정' : '선택한 폴더 삭제'}
+              {mode === 'rename' ? t('folder.renameConfirm') : t('folder.deleteConfirm')}
             </Text>
           </TouchableOpacity>
           <TouchableOpacity style={[styles.cancelBtn, { backgroundColor: colors.border }]} onPress={onClose}>
-            <Text style={[styles.cancelText, { color: colors.text }]}>취소</Text>
+            <Text style={[styles.cancelText, { color: colors.text }]}>{t('folder.cancel')}</Text>
           </TouchableOpacity>
         </View>
       </TouchableOpacity>

@@ -19,6 +19,7 @@ import {
   removeBookmark,
   moveBookmark,
   fetchWordsWithContents,
+  getUserSettings,
   isAuthError,
   VocabularyWord,
   Bookmark,
@@ -27,14 +28,19 @@ import FlipCard from '@/components/FlipCard';
 import MoveBookmarkSheet from './_components/MoveBookmarkSheet';
 import { ChevronLeft, ChevronRight, Star, Moon, Sun, FolderInput } from 'lucide-react-native';
 import { useTheme } from '@/lib/theme';
+import { useTranslation } from 'react-i18next';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function FolderBookmarksScreen() {
+  const { t } = useTranslation();
   const { folderId } = useLocalSearchParams<{ folderId: string }>();
   const router = useRouter();
   const { user, handleSessionError } = useAuth();
   const userId = user?.id ?? null;
   const { width } = useWindowDimensions();
   const { colors, theme, toggleTheme } = useTheme();
+  const insets = useSafeAreaInsets();
+  const bottomInset = Math.max(insets.bottom, 0);
   const flatListRef = useRef<FlatList>(null);
   const [folderName, setFolderName] = useState('');
   const [words, setWords] = useState<VocabularyWord[]>([]);
@@ -66,7 +72,9 @@ export default function FolderBookmarksScreen() {
         return;
       }
       const wordIds = bookmarkList.map((b) => b.word_id);
-      const wordsList = await fetchWordsWithContents(wordIds);
+      const settings = userId ? await getUserSettings(userId) : null;
+      const lang = settings?.learning_language ?? 'ko';
+      const wordsList = await fetchWordsWithContents(wordIds, lang);
       const orderMap = new Map(bookmarkList.map((b, i) => [b.word_id, i]));
       const ordered = wordsList.sort(
         (a, b) => (orderMap.get(a.id) ?? 999) - (orderMap.get(b.id) ?? 999)
@@ -129,7 +137,7 @@ export default function FolderBookmarksScreen() {
         setTimeout(() => flatListRef.current?.scrollToIndex({ index: nextIndex, animated: false }), 100);
       }
     } catch (e) {
-      Alert.alert('오류', '폴더에서 제거에 실패했습니다.');
+      Alert.alert(t('alert.error'), t('folder.removeBookmarkError'));
     }
   };
 
@@ -147,7 +155,7 @@ export default function FolderBookmarksScreen() {
       setCurrentIndex(nextIndex);
       setTimeout(() => flatListRef.current?.scrollToIndex({ index: nextIndex, animated: false }), 100);
     } catch (e) {
-      Alert.alert('오류', '이동에 실패했습니다.');
+      Alert.alert(t('alert.error'), t('folder.moveBookmarkError'));
     }
   };
 
@@ -183,7 +191,7 @@ export default function FolderBookmarksScreen() {
           </View>
         </View>
         <View style={[styles.emptyContainer, { backgroundColor: colors.background }]}>
-          <Text style={[styles.emptyTitle, { color: colors.text }]}>이 폴더에 북마크가 없습니다</Text>
+          <Text style={[styles.emptyTitle, { color: colors.text }]}>{t('folder.emptyFolder')}</Text>
         </View>
       </View>
     );
@@ -250,14 +258,22 @@ export default function FolderBookmarksScreen() {
         getItemLayout={(_, index) => ({ length: width, offset: width * index, index })}
       />
 
-      <View style={[styles.navigation, { backgroundColor: colors.surface, borderTopColor: colors.border }]}>
+      <View
+        style={[
+          styles.navigation,
+          {
+            backgroundColor: colors.surface,
+            borderTopColor: colors.border,
+            paddingBottom: 20 + bottomInset,
+          },
+        ]}>
         <TouchableOpacity
           style={[styles.navButton, currentIndex === 0 && styles.navButtonDisabled]}
           onPress={handlePrevious}
           disabled={currentIndex === 0}>
           <ChevronLeft size={24} color={currentIndex === 0 ? colors.bookmarkEmpty : colors.text} />
           <Text style={[styles.navText, { color: currentIndex === 0 ? colors.bookmarkEmpty : colors.text }]}>
-            Previous
+            {t('study.previous')}
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -265,7 +281,7 @@ export default function FolderBookmarksScreen() {
           onPress={handleNext}
           disabled={currentIndex === words.length - 1}>
           <Text style={[styles.navText, { color: currentIndex === words.length - 1 ? colors.bookmarkEmpty : colors.text }]}>
-            Next
+            {t('study.next')}
           </Text>
           <ChevronRight size={24} color={currentIndex === words.length - 1 ? colors.bookmarkEmpty : colors.text} />
         </TouchableOpacity>

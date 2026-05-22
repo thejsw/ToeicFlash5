@@ -1,8 +1,8 @@
 import { View, Text, StyleSheet, TouchableOpacity, Modal } from 'react-native';
-import { BookmarkFolder } from '@/lib/supabase';
+import { BookmarkFolder, DEFAULT_FOLDER_NAME } from '@/lib/supabase';
 import { FolderPlus, Pencil, Trash2 } from 'lucide-react-native';
 import { useTheme } from '@/lib/theme';
-import { DEFAULT_FOLDER_NAME } from '@/lib/supabase';
+import { useTranslation } from 'react-i18next';
 
 type Props = {
   visible: boolean;
@@ -21,6 +21,7 @@ export default function FolderOptionsSheet({
   onSelectRename,
   onSelectDelete,
 }: Props) {
+  const { t } = useTranslation();
   const { colors } = useTheme();
   const isDefaultFolder = folder?.name === DEFAULT_FOLDER_NAME;
   const canRenameDelete = !folder || !isDefaultFolder;
@@ -34,13 +35,13 @@ export default function FolderOptionsSheet({
           style={[styles.sheet, { backgroundColor: colors.surface }]}
           onStartShouldSetResponder={() => true}>
           <View style={[styles.handle, { backgroundColor: colors.border }]} />
-          <Text style={[styles.title, { color: colors.text }]}>폴더 관리</Text>
+          <Text style={[styles.title, { color: colors.text }]}>{t('folder.manageTitle')}</Text>
 
           <TouchableOpacity
             style={[styles.optionRow, { borderBottomColor: colors.border }]}
             onPress={() => { onSelectCreate(); onClose(); }}>
             <FolderPlus size={22} color={colors.primary} />
-            <Text style={[styles.optionText, { color: colors.text }]}>폴더 생성</Text>
+            <Text style={[styles.optionText, { color: colors.text }]}>{t('folder.create')}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -49,7 +50,7 @@ export default function FolderOptionsSheet({
             disabled={!canRenameDelete}>
             <Pencil size={22} color={canRenameDelete ? colors.primary : colors.textSecondary} />
             <Text style={[styles.optionText, { color: canRenameDelete ? colors.text : colors.textSecondary }]}>
-              폴더 이름 수정
+              {t('folder.rename')}
             </Text>
           </TouchableOpacity>
 
@@ -59,12 +60,12 @@ export default function FolderOptionsSheet({
             disabled={!canRenameDelete}>
             <Trash2 size={22} color={canRenameDelete ? colors.error : colors.textSecondary} />
             <Text style={[styles.optionText, { color: canRenameDelete ? colors.error : colors.textSecondary }]}>
-              폴더 삭제
+              {t('folder.delete')}
             </Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={[styles.cancelBtn, { backgroundColor: colors.border }]} onPress={onClose}>
-            <Text style={[styles.cancelText, { color: colors.text }]}>취소</Text>
+            <Text style={[styles.cancelText, { color: colors.text }]}>{t('folder.cancel')}</Text>
           </TouchableOpacity>
         </View>
       </TouchableOpacity>
