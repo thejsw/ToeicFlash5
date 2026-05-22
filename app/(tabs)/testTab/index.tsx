@@ -13,8 +13,13 @@ import { useAuth } from '@/hooks/useAuth';
 import { ClipboardList } from 'lucide-react-native';
 import { getCurrentWeekNum, formatWeeklyQuizTitle } from '@/lib/weekUtils';
 import { listAvailableWeeklyQuizzes, isAuthError, type WeeklyQuizItem } from '@/lib/supabase';
+<<<<<<< HEAD
 import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+=======
+import { generateWeeklyQuizQuestions } from '@/lib/llm';
+import { useTranslation } from 'react-i18next';
+>>>>>>> ab247db19aef375cf71ff64e670f0ad175e55db5
 
 function withTimeout<T>(promise: Promise<T>, ms: number, timeoutMessage: string): Promise<T> {
   return Promise.race([
@@ -64,6 +69,43 @@ export default function TestScreen() {
     router.push(`/test/week/${weekNum}/quiz`);
   };
 
+<<<<<<< HEAD
+=======
+  const handleCreateAndStart = async () => {
+    setCreating(currentWeekNum);
+    try {
+      await generateWeeklyQuizQuestions(currentWeekNum);
+      setQuizzes((prev) => {
+        const exists = prev.some((q) => q.week_num === currentWeekNum);
+        if (exists) return prev;
+        return [{ week_num: currentWeekNum, created_at: new Date().toISOString() }, ...prev];
+      });
+      router.push(`/test/week/${currentWeekNum}/quiz`);
+    } catch (err: any) {
+      console.error('Error creating weekly quiz:', err);
+      const msg = err?.message ?? '';
+      if (msg.includes('이미 해당 주차') || msg.includes('alreadyExists')) {
+        setQuizzes((prev) => {
+          const exists = prev.some((q) => q.week_num === currentWeekNum);
+          if (exists) return prev;
+          return [{ week_num: currentWeekNum, created_at: new Date().toISOString() }, ...prev];
+        });
+        router.push(`/test/week/${currentWeekNum}/quiz`);
+        return;
+      }
+      Alert.alert(
+        t('testTab.createFail'),
+        t('testTab.createFailBody', {
+          msg: msg || t('testTab.createFailGeneric'),
+          hint: t('testTab.createFailHint'),
+        })
+      );
+    } finally {
+      setCreating(null);
+    }
+  };
+
+>>>>>>> ab247db19aef375cf71ff64e670f0ad175e55db5
   if (loading) {
     return (
       <View style={[styles.container, styles.centered, { backgroundColor: colors.background }]}>
@@ -93,6 +135,7 @@ export default function TestScreen() {
             {formatWeeklyQuizTitle(currentWeekNum)}
           </Text>
           <Text style={[styles.cardDesc, { color: colors.textSecondary }]}>
+<<<<<<< HEAD
             {hasCurrentQuiz ? t('testTab.savedQuiz') : t('testTab.preparingBody')}
           </Text>
           <TouchableOpacity
@@ -102,6 +145,19 @@ export default function TestScreen() {
             <Text style={[styles.buttonText, !hasCurrentQuiz && { color: colors.textSecondary }]}>
               {hasCurrentQuiz ? t('testTab.startOver') : t('testTab.preparing')}
             </Text>
+=======
+            {hasCurrentQuiz ? t('testTab.savedQuiz') : t('testTab.thisWeekQuiz')}
+          </Text>
+          <TouchableOpacity
+            style={[styles.button, { backgroundColor: colors.primary }]}
+            onPress={hasCurrentQuiz ? () => handleStart(currentWeekNum) : handleCreateAndStart}
+            disabled={creating !== null}>
+            {creating === currentWeekNum ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <Text style={styles.buttonText}>{hasCurrentQuiz ? t('testTab.startOver') : t('testTab.start')}</Text>
+            )}
+>>>>>>> ab247db19aef375cf71ff64e670f0ad175e55db5
           </TouchableOpacity>
         </View>
 

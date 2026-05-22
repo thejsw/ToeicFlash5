@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function WeekQuizResultScreen() {
   const { t } = useTranslation();
+  const { t } = useTranslation();
   const router = useRouter();
   const { weekNum, questions: questionsParam, userAnswers: userAnswersParam } =
     useLocalSearchParams<{
@@ -71,11 +72,13 @@ export default function WeekQuizResultScreen() {
           <ChevronLeft size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: colors.text }]}>{t('quizResult.title')}</Text>
+        <Text style={[styles.headerTitle, { color: colors.text }]}>{t('quizResult.title')}</Text>
         <View style={{ width: 40 }} />
       </View>
 
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
         <View style={[styles.scoreContainer, { backgroundColor: colors.surface }]}>
+          <Text style={[styles.scoreLabel, { color: colors.textSecondary }]}>{t('quizResult.score')}</Text>
           <Text style={[styles.scoreLabel, { color: colors.textSecondary }]}>{t('quizResult.score')}</Text>
           <Text style={[styles.scoreText, { color: colors.primary }]}>
             {score} / {results.length}
@@ -94,6 +97,9 @@ export default function WeekQuizResultScreen() {
                   <Text style={[styles.resultNumber, { color: colors.text }]}>
                     {t('quiz.questionLabel', { n: index + 1 })}
                   </Text>
+                  <Text style={[styles.resultNumber, { color: colors.text }]}>
+                    {t('quiz.questionLabel', { n: index + 1 })}
+                  </Text>
                   {result.isCorrect ? (
                     <CheckCircle size={24} color={colors.success || '#10b981'} />
                   ) : (
@@ -103,6 +109,7 @@ export default function WeekQuizResultScreen() {
                 <Text style={[styles.resultQuestion, { color: colors.text }]}>{result.question}</Text>
                 <View style={styles.answerSection}>
                   <View style={styles.answerRow}>
+                    <Text style={[styles.answerLabel, { color: colors.textSecondary }]}>{t('quizResult.myAnswer')}</Text>
                     <Text style={[styles.answerLabel, { color: colors.textSecondary }]}>{t('quizResult.myAnswer')}</Text>
                     <Text
                       style={[
@@ -119,6 +126,7 @@ export default function WeekQuizResultScreen() {
                   {!result.isCorrect && (
                     <View style={styles.answerRow}>
                       <Text style={[styles.answerLabel, { color: colors.textSecondary }]}>{t('quizResult.correct')}</Text>
+                      <Text style={[styles.answerLabel, { color: colors.textSecondary }]}>{t('quizResult.correct')}</Text>
                       <Text style={[styles.answerText, { color: colors.primary }]}>
                         {getChoiceLabel(result.correctAnswer, choices)}. {result.correctAnswer}
                       </Text>
@@ -126,6 +134,7 @@ export default function WeekQuizResultScreen() {
                   )}
                 </View>
                 <View style={[styles.explanationContainer, { backgroundColor: colors.background }]}>
+                  <Text style={[styles.explanationLabel, { color: colors.textSecondary }]}>{t('quizResult.explanation')}</Text>
                   <Text style={[styles.explanationLabel, { color: colors.textSecondary }]}>{t('quizResult.explanation')}</Text>
                   <Text style={[styles.explanationText, { color: colors.text }]}>
                     {result.explanation}
@@ -148,10 +157,12 @@ export default function WeekQuizResultScreen() {
         ]}>
         <TouchableOpacity style={[styles.button, { borderColor: colors.border }]} onPress={handleRetry}>
           <Text style={[styles.buttonText, { color: colors.text }]}>{t('quizResult.retry')}</Text>
+          <Text style={[styles.buttonText, { color: colors.text }]}>{t('quizResult.retry')}</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.button, styles.buttonPrimary, { backgroundColor: colors.primary }]}
           onPress={handleGoHome}>
+          <Text style={[styles.buttonText, styles.buttonTextPrimary]}>{t('quizResult.home')}</Text>
           <Text style={[styles.buttonText, styles.buttonTextPrimary]}>{t('quizResult.home')}</Text>
         </TouchableOpacity>
       </View>

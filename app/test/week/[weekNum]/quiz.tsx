@@ -14,7 +14,10 @@ import { QuizQuestion } from '@/types/quiz';
 import { fetchQuizByWeek, getCurrentUserId, getUserSettings } from '@/lib/supabase';
 import { formatWeeklyQuizTitle } from '@/lib/weekUtils';
 import { useTranslation } from 'react-i18next';
+<<<<<<< HEAD
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+=======
+>>>>>>> ab247db19aef375cf71ff64e670f0ad175e55db5
 
 export default function WeekQuizScreen() {
   const { t } = useTranslation();
@@ -38,6 +41,7 @@ export default function WeekQuizScreen() {
     try {
       setLoading(true);
       setError(null);
+<<<<<<< HEAD
       let learningLanguage = 'ko';
       try {
         const uid = await getCurrentUserId();
@@ -47,6 +51,9 @@ export default function WeekQuizScreen() {
         console.warn('Failed to load quiz language setting:', settingsError);
       }
       const { questions: weekQuestions } = await fetchQuizByWeek(num, learningLanguage);
+=======
+      const { questions: weekQuestions } = await fetchQuizByWeek(num);
+>>>>>>> ab247db19aef375cf71ff64e670f0ad175e55db5
       const quizQuestions: QuizQuestion[] = weekQuestions.map((q) => ({
         question: q.question_text,
         choices: q.choices.map((c) => c.choice_text),
