@@ -14,21 +14,26 @@ import {
   VocabularyWord,
   fetchWordsWithContents,
   getCurrentUserId,
+  getUserSettings,
   getBookmarkedWordIds,
   addBookmark,
   removeBookmarkByWord,
   upsertUserProgress,
 } from '@/lib/supabase';
+import { useAuth } from '@/hooks/useAuth';
 import FlipCard from '@/components/FlipCard';
 import BookmarkFolderPicker from '@/components/BookmarkFolderPicker';
 import { ChevronLeft, ChevronRight, Star, Moon, Sun } from 'lucide-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '@/lib/theme';
+import { useTranslation } from 'react-i18next';
 
 export default function StudyScreen() {
+  const { t } = useTranslation();
   const { width } = useWindowDimensions();
   const { day } = useLocalSearchParams<{ day: string }>();
   const router = useRouter();
+  const { user } = useAuth();
   const { colors, theme, toggleTheme } = useTheme();
   const flatListRef = useRef<FlatList>(null);
   const pendingScrollIndexRef = useRef<number | null>(null);
@@ -50,7 +55,7 @@ export default function StudyScreen() {
   useEffect(() => {
     loadWords();
     loadBookmarks();
-  }, [day]);
+  }, [day, user?.id]);
 
   useEffect(() => {
     saveProgress();
@@ -83,7 +88,10 @@ export default function StudyScreen() {
 
   const loadWords = async () => {
     try {
-      const merged = await fetchWordsWithContents({ day: parseInt(day) });
+      const uid = await getCurrentUserId();
+      const settings = uid ? await getUserSettings(uid) : null;
+      const lang = settings?.learning_language ?? 'ko';
+      const merged = await fetchWordsWithContents({ day: parseInt(day) }, lang);
       setWords(merged);
 
       const savedIndex = await AsyncStorage.getItem(`progress_day_${day}`);
@@ -259,7 +267,7 @@ export default function StudyScreen() {
         <TouchableOpacity onPress={goHome} style={styles.backButton}>
           <ChevronLeft size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.text }]}>Day {day}</Text>
+        <Text style={[styles.headerTitle, { color: colors.text }]}>{t('study.dayHeader', { day })}</Text>
         <View style={styles.headerActions}>
           <TouchableOpacity onPress={toggleTheme} style={styles.themeButton}>
             {theme === 'light' ? (
@@ -351,7 +359,7 @@ export default function StudyScreen() {
               }
               router.push(`/study/${day}/complete`);
             }}>
-            <Text style={styles.completeButtonText}>Day 학습 완료</Text>
+            <Text style={styles.completeButtonText}>{t('study.dayComplete')}</Text>
           </TouchableOpacity>
         ) : (
           <>
@@ -370,7 +378,7 @@ export default function StudyScreen() {
                     color: currentIndex === 0 ? colors.bookmarkEmpty : colors.text,
                   },
                 ]}>
-                Previous
+                {t('study.previous')}
               </Text>
             </TouchableOpacity>
 
@@ -388,7 +396,7 @@ export default function StudyScreen() {
                     color: currentIndex === words.length - 1 ? colors.bookmarkEmpty : colors.text,
                   },
                 ]}>
-                Next
+                {t('study.next')}
               </Text>
               <ChevronRight
                 size={24}

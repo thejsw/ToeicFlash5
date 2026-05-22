@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import '@/lib/i18n';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useFrameworkReady } from '@/hooks/useFrameworkReady';
@@ -14,6 +14,7 @@ export default function RootLayout() {
         <>
           <Stack screenOptions={{ headerShown: false }}>
             <Stack.Screen name="(tabs)" />
+            <Stack.Screen name="auth" />
             <Stack.Screen name="test" />
             <Stack.Screen name="+not-found" />
           </Stack>

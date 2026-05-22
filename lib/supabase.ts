@@ -2,7 +2,11 @@ import { createClient } from '@supabase/supabase-js';
 import Constants from 'expo-constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
+import * as Linking from 'expo-linking';
+import * as WebBrowser from 'expo-web-browser';
 import 'react-native-url-polyfill/auto';
+
+WebBrowser.maybeCompleteAuthSession();
 
 const GUEST_FOLDERS_KEY = 'bookmark_guest_folders';
 const GUEST_BOOKMARKS_KEY = 'bookmark_guest_bookmarks';
@@ -123,7 +127,7 @@ export type BookmarkFolder = {
   created_at: string;
 };
 
-export const DEFAULT_FOLDER_NAME = '기본';
+export const DEFAULT_FOLDER_NAME = 'Bookmarked Words';
 
 // words / word_contents 단일 테이블 응답
 type WordRow = {
@@ -141,12 +145,59 @@ type WordContentRow = {
   language?: string | null;
 };
 
+/** word_contents.language / user_settings.learning_language 비교용 (jp·ja 동일, ko·kr·ko-KR → ko) */
+export function normalizeWordContentLanguageKey(lang: string | null | undefined): string {
+  const raw = (lang ?? '').trim().toLowerCase();
+  if (!raw) return '';
+  if (raw === 'jp' || raw.startsWith('ja')) return 'ja';
+  // ISO 639-1 ko, ISO 639-1 kr(한국), BCP 47 ko-KR 등
+  if (raw.startsWith('ko') || raw === 'kr' || raw.startsWith('kr-')) return 'ko';
+  const head = raw.split(/[-_]/)[0];
+  return head || raw;
+}
+
+function pickWordContentRow(
+  rows: WordContentRow[],
+  preferredLearningLanguage: string
+): WordContentRow | undefined {
+  if (rows.length === 0) return undefined;
+  const want = normalizeWordContentLanguageKey(preferredLearningLanguage) || 'ko';
+  const keyOf = (r: WordContentRow) => normalizeWordContentLanguageKey(r.language);
+
+  const preferred = rows.find((r) => keyOf(r) === want);
+  if (preferred) return preferred;
+
+  if (want === 'ko') {
+    const koRow = rows.find((r) => keyOf(r) === 'ko');
+    if (koRow) return koRow;
+    // DB에 language 미기입으로 한국어 행만 넣은 경우
+    const unlabeled = rows.find((r) => !((r.language ?? '').trim()));
+    if (unlabeled) return unlabeled;
+  }
+
+  if (want === 'ja') {
+    const jaRow = rows.find((r) => keyOf(r) === 'ja');
+    if (jaRow) return jaRow;
+  }
+
+  // en 행은 example_local에 영문이 그대로 들어 있는 경우가 많아, ko/ja 매칭 실패 시 최후 수단으로만 사용
+  const nonEn = rows.find((r) => {
+    const k = keyOf(r);
+    return k !== '' && k !== 'en';
+  });
+  if (nonEn) return nonEn;
+
+  return rows[0];
+}
+
 /**
  * words와 word_contents를 각각 조회한 뒤 클라이언트에서 병합.
  * (Supabase 중첩 select가 null을 주는 경우 대비 — relation/FK 설정 없어도 동작)
+ * @param learningLanguage user_settings.learning_language (예: ko, ja, jp)
  */
 export async function fetchWordsWithContents(
-  wordIds: string[] | { day: number }
+  wordIds: string[] | { day: number },
+  learningLanguage: string = 'ko'
 ): Promise<VocabularyWord[]> {
   const isByDay = typeof wordIds === 'object' && 'day' in wordIds;
 
@@ -176,15 +227,12 @@ export async function fetchWordsWithContents(
   if (contentsError) throw contentsError;
   const contents = (contentsData ?? []) as WordContentRow[];
 
-  const byWordId = new Map<string, WordContentRow>();
+  const rowsByWordId = new Map<string, WordContentRow[]>();
   for (const c of contents) {
     if (c.word_id == null || c.word_id === '') continue;
-    const existing = byWordId.get(c.word_id);
-    const isKo = (c.language ?? '').toLowerCase().startsWith('ko');
-    const existingIsKo = existing ? (existing.language ?? '').toLowerCase().startsWith('ko') : false;
-    if (!existing || (isKo && !existingIsKo)) {
-      byWordId.set(c.word_id, c);
-    }
+    const list = rowsByWordId.get(c.word_id) ?? [];
+    list.push(c);
+    rowsByWordId.set(c.word_id, list);
   }
 
   function getExampleLocalOnly(c: WordContentRow | undefined): string {
@@ -194,7 +242,8 @@ export async function fetchWordsWithContents(
   }
 
   return words.map((w) => {
-    const c = byWordId.get(w.id);
+    const rows = rowsByWordId.get(w.id) ?? [];
+    const c = pickWordContentRow(rows, learningLanguage);
     const exampleEn = w.example_en ?? '';
     const exampleLocal = getExampleLocalOnly(c);
     return {
@@ -567,7 +616,70 @@ export async function getCurrentUserId(): Promise<string | null> {
   return session?.user?.id ?? null;
 }
 
+function getOAuthParamsFromUrl(url: string): URLSearchParams {
+  const parsedUrl = new URL(url);
+  const params = new URLSearchParams(parsedUrl.search);
+  const hashParams = new URLSearchParams(parsedUrl.hash.replace(/^#/, ''));
+
+  hashParams.forEach((value, key) => {
+    params.set(key, value);
+  });
+
+  return params;
+}
+
 export async function signInWithGoogle(redirectTo?: string) {
+  if (Platform.OS !== 'web') {
+    const nativeRedirectTo = redirectTo ?? Linking.createURL('auth/callback');
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: nativeRedirectTo,
+        skipBrowserRedirect: true,
+        queryParams: {
+          prompt: 'select_account',
+        },
+      },
+    });
+
+    if (error) throw error;
+    if (!data.url) {
+      throw new Error('Google login URL was not returned.');
+    }
+
+    const result = await WebBrowser.openAuthSessionAsync(data.url, nativeRedirectTo);
+    if (result.type !== 'success') {
+      throw new Error('Google login was cancelled.');
+    }
+
+    const params = getOAuthParamsFromUrl(result.url);
+    const accessToken = params.get('access_token');
+    const refreshToken = params.get('refresh_token');
+    const code = params.get('code');
+    const oauthError = params.get('error_description') ?? params.get('error');
+
+    if (oauthError) {
+      throw new Error(oauthError);
+    }
+
+    if (accessToken && refreshToken) {
+      const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
+        access_token: accessToken,
+        refresh_token: refreshToken,
+      });
+      if (sessionError) throw sessionError;
+      return sessionData;
+    }
+
+    if (code) {
+      const { data: sessionData, error: sessionError } = await supabase.auth.exchangeCodeForSession(code);
+      if (sessionError) throw sessionError;
+      return sessionData;
+    }
+
+    throw new Error('Google login did not return a Supabase session.');
+  }
+
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
     options: {
@@ -727,18 +839,21 @@ export async function getUserSettings(userId: string): Promise<UserSettings | nu
 }
 
 /** 로그인 시 user_settings가 없으면 기본값으로 생성 */
-export async function ensureUserSettings(userId: string): Promise<UserSettings> {
+export async function ensureUserSettings(
+  userId: string,
+  defaultLearningLanguage = 'ko'
+): Promise<UserSettings> {
   const existing = await getUserSettings(userId);
   if (existing) return existing;
   return upsertUserSettings(userId, {
-    learning_language: 'ko',
+    learning_language: defaultLearningLanguage,
     notification_enabled: true,
   });
 }
 
 /** 신규 유저 초기 데이터 생성: user_settings, bookmark_folders(기본 폴더), user_progress는 학습 시 자동 생성 */
-export async function ensureNewUserData(userId: string): Promise<void> {
-  await ensureUserSettings(userId);
+export async function ensureNewUserData(userId: string, defaultLearningLanguage = 'ko'): Promise<void> {
+  await ensureUserSettings(userId, defaultLearningLanguage);
   await ensureDefaultFolder(userId);
 }
 

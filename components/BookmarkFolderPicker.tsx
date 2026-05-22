@@ -19,6 +19,7 @@ import {
 } from '@/lib/supabase';
 import { Check, FolderPlus } from 'lucide-react-native';
 import { useTheme } from '@/lib/theme';
+import { useTranslation } from 'react-i18next';
 
 type Props = {
   visible: boolean;
@@ -34,6 +35,7 @@ export default function BookmarkFolderPicker({
   onSelectFolders,
   onClose,
 }: Props) {
+  const { t } = useTranslation();
   const { colors } = useTheme();
   const [folders, setFolders] = useState<BookmarkFolder[]>([]);
   const [loading, setLoading] = useState(true);
@@ -110,7 +112,7 @@ export default function BookmarkFolderPicker({
             onStartShouldSetResponder={() => true}>
             <View style={[styles.handle, { backgroundColor: colors.border }]} />
             <View style={styles.titleRow}>
-              <Text style={[styles.title, { color: colors.text }]}>북마크 폴더 선택</Text>
+              <Text style={[styles.title, { color: colors.text }]}>{t('bookmarkPicker.title')}</Text>
               <TouchableOpacity
                 style={styles.newFolderIconBtn}
                 onPress={() => setShowCreateInput(true)}
@@ -156,8 +158,8 @@ export default function BookmarkFolderPicker({
                 disabled={selectedFolderIds.size === 0}>
                 <Text style={[styles.saveBtnText, { color: selectedFolderIds.size > 0 ? '#fff' : colors.textSecondary }]}>
                   {selectedFolderIds.size > 0
-                    ? `선택한 폴더 ${selectedFolderIds.size}개에 저장`
-                    : '폴더를 선택하세요'}
+                    ? t('bookmarkPicker.saveToCount', { count: selectedFolderIds.size })
+                    : t('bookmarkPicker.selectPrompt')}
                 </Text>
               </TouchableOpacity>
             )}
@@ -167,7 +169,7 @@ export default function BookmarkFolderPicker({
                 <View style={styles.createRow}>
                   <TextInput
                     style={[styles.input, { color: colors.text, borderColor: colors.border }]}
-                    placeholder="폴더 이름"
+                    placeholder={t('folder.namePlaceholder')}
                     placeholderTextColor={colors.textSecondary}
                     value={newFolderName}
                     onChangeText={setNewFolderName}
@@ -177,14 +179,14 @@ export default function BookmarkFolderPicker({
                     style={[styles.createBtn, { backgroundColor: colors.primary }]}
                     onPress={handleCreateFolder}
                     disabled={creating || !newFolderName.trim()}>
-                    <Text style={styles.createBtnText}>{creating ? '...' : '만들기'}</Text>
+                    <Text style={styles.createBtnText}>{creating ? t('bookmarkPicker.creating') : t('folder.createSubmit')}</Text>
                   </TouchableOpacity>
                 </View>
               ) : null}
             </View>
 
             <TouchableOpacity style={[styles.cancelBtn, { backgroundColor: colors.border }]} onPress={onClose}>
-              <Text style={[styles.cancelText, { color: colors.text }]}>취소</Text>
+              <Text style={[styles.cancelText, { color: colors.text }]}>{t('folder.cancel')}</Text>
             </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>

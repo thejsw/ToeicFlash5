@@ -1,0 +1,170 @@
+{
+  "bookmark": {
+    "create": "ブックマーク作成",
+    "move": "ブックマーク移動",
+    "delete": "ブックマーク削除"
+  },
+  "tabs": {
+    "home": "ホーム",
+    "bookmarks": "ブックマーク",
+    "profile": "プロフィール",
+    "test": "テスト"
+  },
+  "home": {
+    "subtitle": "学習するDayを選んでください",
+    "dayLabel": "Day {{day}}",
+    "wordProgress": "{{current}} / {{total}} 語"
+  },
+  "flashcard": {
+    "english": "English",
+    "tapHint": "タップすると意味が表示されます",
+    "meaning": "意味",
+    "exampleEn": "例文（英語）",
+    "exampleLocal": "例文（日本語）"
+  },
+  "study": {
+    "dayHeader": "Day {{day}}",
+    "previous": "前へ",
+    "next": "次へ",
+    "dayComplete": "Day 学習完了"
+  },
+  "studyComplete": {
+    "title": "Day {{day}} 完了",
+    "prompt": "今日覚えた単語でクイズに挑戦しますか？",
+    "startQuiz": "クイズを始める",
+    "studyAgain": "もう一度学習する"
+  },
+  "quiz": {
+    "loading": "問題を読み込んでいます...",
+    "dayTitle": "Day {{day}} クイズ",
+    "next": "次の問題",
+    "viewResults": "結果を見る",
+    "questionLabel": "問題 {{n}}",
+    "noQuestionsForDay": "このDayのクイズがありません。",
+    "loadError": "クイズの読み込み中にエラーが発生しました。",
+    "selectAnswer": "解答を選んでください。",
+    "cannotLoad": "問題を読み込めませんでした。",
+    "retry": "再試行"
+  },
+  "quizResult": {
+    "title": "クイズ結果",
+    "score": "スコア",
+    "myAnswer": "あなたの解答：",
+    "correct": "正解：",
+    "explanation": "解説",
+    "retry": "もう一度",
+    "home": "ホームへ"
+  },
+  "alert": {
+    "error": "エラー",
+    "notice": "お知らせ"
+  },
+  "folder": {
+    "headerTitle": "ブックマークフォルダ",
+    "manageTitle": "フォルダ管理",
+    "create": "フォルダ作成",
+    "rename": "フォルダ名の変更",
+    "delete": "フォルダ削除",
+    "moveTitle": "フォルダへ移動",
+    "moveConfirm": "選択したフォルダへ移動",
+    "selectRenameTitle": "名前を変更するフォルダを選択",
+    "selectDeleteTitle": "削除するフォルダを選択",
+    "renameConfirm": "選択したフォルダの名前を変更",
+    "deleteConfirm": "選択したフォルダを削除",
+    "namePlaceholder": "フォルダ名",
+    "newFolder": "新しいフォルダ",
+    "renameModalTitle": "フォルダ名の変更",
+    "deleteModalTitle": "フォルダ削除",
+    "deleteModalMessage": "「{{name}}」フォルダを削除しますか？中のブックマークはデフォルトフォルダに移動されます。",
+    "save": "保存",
+    "createSubmit": "作成",
+    "cancel": "キャンセル",
+    "deleteSubmit": "削除",
+    "createError": "フォルダの作成に失敗しました。",
+    "renameError": "フォルダ名の変更に失敗しました。",
+    "deleteError": "フォルダの削除に失敗しました。",
+    "removeBookmarkError": "フォルダからの削除に失敗しました。",
+    "moveBookmarkError": "移動に失敗しました。",
+    "emptyFolder": "このフォルダにブックマークはありません"
+  },
+  "bookmarkPicker": {
+    "title": "ブックマークフォルダを選択",
+    "saveToCount": "選択したフォルダ{{count}}件に保存",
+    "selectPrompt": "フォルダを選択してください",
+    "creating": "..."
+  },
+  "profile": {
+    "title": "プロフィール",
+    "loginTitle": "ログイン",
+    "loginSubtitle": "学習進度とブックマークを保存し、\n複数端末で同期しましょう。",
+    "googleContinue": "Googleで続ける",
+    "guestInfo": "未ログインでも学習・ブックマーク・テストを利用できます。",
+    "defaultUser": "ユーザー",
+    "statsSection": "学習状況",
+    "dayProgressLabel": "Day進捗",
+    "dayProgressComplete": "{{total}}日分の学習完了",
+    "dayProgressPartial": "{{completed}} / {{total}} 日学習",
+    "weeklyMockLabel": "週別模擬試験",
+    "weeklyMockHas": "{{count}}週分受験可能",
+    "weeklyMockNone": "受験できる模擬試験はありません",
+    "settingsSection": "設定",
+    "appSettings": "アプリ設定",
+    "signOut": "ログアウト",
+    "loginFail": "ログイン失敗",
+    "signOutConfirm": "ログアウトしますか？",
+    "signOutTitle": "ログアウト"
+  },
+  "settings": {
+    "title": "設定",
+    "loginRequired": "ログインが必要です。",
+    "learningLanguage": "学習言語",
+    "contentLanguageTitle": "コンテンツ表示言語",
+    "contentLanguageDesc": "単語の意味と例文の翻訳に使う言語を選んでください。",
+    "langKo": "한국어",
+    "langJa": "日本語",
+    "notifications": "通知",
+    "pushTitle": "プッシュ通知",
+    "pushDesc": "学習リマインダーと主要な通知を受け取ります。",
+    "dangerZone": "危険ゾーン",
+    "deleteAccount": "アカウント削除",
+    "deleteAccountDesc": "すべてのデータが完全に削除されます。",
+    "saveFail": "保存に失敗しました",
+    "deleteFail": "アカウント削除に失敗しました",
+    "unknownError": "不明なエラー",
+    "accountDeleteTitle": "アカウント削除",
+    "accountDeleteMessage": "本当にアカウントを削除しますか？\n\nこの操作は取り消せず、すべてのデータが削除されます。",
+    "accountDeleteFinalTitle": "最終確認",
+    "accountDeleteFinalMessage": "アカウント削除を進めると、次のデータがすべて削除されます:\n\n• プロフィール情報\n• 学習進捗\n• ブックマーク\n• 設定\n\n本当に削除しますか？",
+    "accountDeleteWebStep1": "アカウント削除\n\n本当にアカウントを削除しますか？\n\nこの操作は取り消せず、すべてのデータが削除されます。",
+    "accountDeleteWebStep2": "最終確認\n\nアカウント削除を進めると、次のデータがすべて削除されます:\n\n• プロフィール情報\n• 学習進捗\n• ブックマーク\n• 設定\n\n本当に削除しますか？",
+    "deletePermanently": "完全に削除",
+    "delete": "削除"
+  },
+  "notFound": {
+    "title": "おっと",
+    "message": "この画面は存在しません。",
+    "goHome": "ホームへ"
+  },
+  "testTab": {
+    "title": "テスト",
+    "subtitle": "週別 TOEIC Part 5 語彙模擬試験",
+    "savedQuiz": "保存済みの模擬試験です。再度受験できます。",
+    "thisWeekQuiz": "今週の模擬試験",
+    "start": "開始",
+    "startOver": "始める",
+    "retryList": "もう一度解く",
+    "createFail": "作成失敗",
+    "createFailBody": "{{msg}}\n\n{{hint}}",
+    "createFailHint": "SupabaseダッシュボードでEdge Function「generate-weekly-quiz」のデプロイとシークレット（OPENAI_API_KEY、SUPABASE_URL、SUPABASE_SERVICE_ROLE_KEY）を確認してください。",
+    "createFailGeneric": "週別模擬試験の作成中にエラーが発生しました。"
+  },
+  "weeklyQuiz": {
+    "defaultTitle": "週別模擬試験",
+    "invalidWeek": "週番号が無効です。",
+    "noQuiz": "この週のクイズがありません。先にテストタブで作成してください。",
+    "loadError": "クイズの読み込み中にエラーが発生しました。"
+  },
+  "errors": {
+    "requestTimeout": "リクエストがタイムアウトしました。"
+  }
+}

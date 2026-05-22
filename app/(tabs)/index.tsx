@@ -1,16 +1,17 @@
 import React, { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
-import { supabase } from '@/lib/supabase';
-import { getUserProgressList, isAuthError } from '@/lib/supabase';
+import { supabase, getUserProgressList, isAuthError } from '@/lib/supabase';
 import { BookOpen, Moon, Sun, Check, GraduationCap } from 'lucide-react-native';
 import { useTheme } from '@/lib/theme';
 import { useAuth } from '@/hooks/useAuth';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useTranslation } from 'react-i18next';
 
 const TOTAL_DAYS = 50;
 
 export default function HomeScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const { colors, theme, toggleTheme } = useTheme();
   const { user, handleSessionError } = useAuth();
@@ -123,7 +124,7 @@ export default function HomeScreen() {
         <View>
           <Text style={[styles.title, { color: colors.text }]}>⚡ Flash5 TOEIC</Text>
           <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-            Choose a day to study
+            {t('home.subtitle')}
           </Text>
         </View>
         <TouchableOpacity onPress={toggleTheme} style={styles.themeButton}>
@@ -179,7 +180,7 @@ export default function HomeScreen() {
                   <IconComponent size={24} color={colors.primary} />
                 </View>
                 <Text style={[styles.dayNumber, { color: colors.text }]}>
-                  Day {day}
+                  {t('home.dayLabel', { day })}
                 </Text>
                 <View style={styles.progressBarContainer}>
                   <View
@@ -199,7 +200,7 @@ export default function HomeScreen() {
                   </View>
                 </View>
                 <Text style={[styles.wordCount, { color: colors.textSecondary }]}>
-                  {currentProgress} / {totalWords} words
+                  {t('home.wordProgress', { current: currentProgress, total: totalWords })}
                 </Text>
               </TouchableOpacity>
             );

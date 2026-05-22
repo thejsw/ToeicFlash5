@@ -12,8 +12,13 @@ import {
   upsertUserProfile,
   ensureNewUserData,
   ensureUserSettings,
+  getUserSettings,
   UserProfile,
 } from '@/lib/supabase';
+import i18n, {
+  applyResolvedI18nLanguage,
+  resolveInitialI18nLanguage,
+} from '@/lib/i18n';
 
 type AuthState = {
   session: Session | null;
@@ -68,7 +73,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       (merged.full_name as string) ??
       (merged.name as string) ??
       user.email?.split('@')[0] ??
-      '사용자';
+      i18n.t('profile.defaultUser');
     const avatarUrl =
       (merged.avatar_url as string) ?? (merged.picture as string) ?? null;
     const provider = (user.app_metadata?.provider as string) ?? 'email';
@@ -90,18 +95,19 @@ export function AuthProvider({ children }: AuthProviderProps) {
       if (!existingProfile) {
         // 신규 유저: 프로필 생성 + user_settings, bookmark_folders(기본 폴더) 초기화
         const { username, avatar_url: avatarUrl, provider } = getProfileFromUser(user);
+        const initialLanguage = await resolveInitialI18nLanguage();
         const profile = await upsertUserProfile(user.id, {
           address: address ?? undefined,
           username,
           avatar_url: avatarUrl,
           provider,
         });
-        await ensureNewUserData(user.id);
+        await ensureNewUserData(user.id, initialLanguage);
         return profile;
       }
 
       // 기존 유저: DB에서 불러온 정보 그대로 사용 (수정 없음)
-      await ensureUserSettings(existingProfile.id);
+      await ensureUserSettings(existingProfile.id, await resolveInitialI18nLanguage());
       return existingProfile;
     } catch (error) {
       console.error('Failed to ensure profile:', error);
@@ -118,6 +124,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       }, INIT_TOTAL_TIMEOUT_MS);
 
       try {
+        await applyResolvedI18nLanguage();
         const { data: { session } } = await supabase.auth.getSession();
         const currentSession = session;
         const user = session?.user ?? null;
@@ -190,6 +197,33 @@ export function AuthProvider({ children }: AuthProviderProps) {
       subscription.unsubscribe();
     };
   }, [ensureProfile, fetchProfile]);
+
+  const currentUserId = state.user?.id;
+  const currentProfileId = state.profile?.id;
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!currentUserId) {
+        await applyResolvedI18nLanguage();
+        return;
+      }
+      try {
+        const settingsUserId = currentProfileId ?? currentUserId;
+        const s = await getUserSettings(settingsUserId);
+        if (!cancelled) {
+          await applyResolvedI18nLanguage(s?.learning_language);
+        }
+      } catch {
+        if (!cancelled) {
+          await applyResolvedI18nLanguage();
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [currentProfileId, currentUserId]);
 
   const signInWithGoogle = useCallback(async (redirectTo?: string) => {
     setState((prev) => ({ ...prev, loading: true }));

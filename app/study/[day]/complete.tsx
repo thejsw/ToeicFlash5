@@ -2,8 +2,10 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useTheme } from '@/lib/theme';
 import { ChevronLeft } from 'lucide-react-native';
+import { useTranslation } from 'react-i18next';
 
 export default function DayCompleteScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const { day } = useLocalSearchParams<{ day: string }>();
   const { colors } = useTheme();
@@ -22,26 +24,26 @@ export default function DayCompleteScreen() {
         <TouchableOpacity onPress={handleGoBack} style={styles.backButton}>
           <ChevronLeft size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.text }]}>Day {day} 완료</Text>
+        <Text style={[styles.headerTitle, { color: colors.text }]}>
+          {t('studyComplete.title', { day: day ?? '' })}
+        </Text>
         <View style={{ width: 40 }} />
       </View>
 
       <View style={styles.content}>
-        <Text style={[styles.message, { color: colors.text }]}>
-          오늘 배운 단어로 문제를 풀어볼까요?
-        </Text>
+        <Text style={[styles.message, { color: colors.text }]}>{t('studyComplete.prompt')}</Text>
 
         <TouchableOpacity
           style={[styles.quizButton, { backgroundColor: colors.primary }]}
           onPress={handleStartQuiz}>
-          <Text style={styles.quizButtonText}>문제 풀기</Text>
+          <Text style={styles.quizButtonText}>{t('studyComplete.startQuiz')}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
           style={[styles.backToStudyButton, { borderColor: colors.border }]}
           onPress={handleGoBack}>
           <Text style={[styles.backToStudyButtonText, { color: colors.textSecondary }]}>
-            다시 학습하기
+            {t('studyComplete.studyAgain')}
           </Text>
         </TouchableOpacity>
       </View>
@@ -107,12 +109,3 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
 });
-
-
-
-
-
-
-
-
-
