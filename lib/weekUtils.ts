@@ -27,8 +27,3 @@ export function parseWeekNum(weekNum: number): { year: number; month: number; we
   return { year, month, week };
 }
 
-/** 퀴즈 제목: "20xx년 x월 x주차 토익 part.5 모의고사" */
-export function formatWeeklyQuizTitle(weekNum: number): string {
-  const { year, month, week } = parseWeekNum(weekNum);
-  return `${year}년 ${month}월 ${week}주차 토익 part.5 모의고사`;
-}

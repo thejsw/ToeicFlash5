@@ -31,7 +31,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function StudyScreen() {
   const { t } = useTranslation();
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
   const { day } = useLocalSearchParams<{ day: string }>();
   const router = useRouter();
   const { user } = useAuth();
@@ -263,6 +263,7 @@ export default function StudyScreen() {
   const isBookmarked = currentWord && bookmarkedIds.has(currentWord.id);
   const progressPercent =
     words.length > 0 ? ((currentIndex + 1) / words.length) * 100 : 0;
+  const cardMaxHeight = Math.max(200, height - 300 - bottomInset);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -322,6 +323,8 @@ export default function StudyScreen() {
         decelerationRate="fast"
         onViewableItemsChanged={onViewableItemsChanged}
         viewabilityConfig={viewabilityConfig}
+        style={styles.cardList}
+        contentContainerStyle={styles.cardListContent}
         onContentSizeChange={() => {
           const pending = pendingScrollIndexRef.current;
           if (words.length > 0 && pending !== null && flatListRef.current) {
@@ -336,6 +339,7 @@ export default function StudyScreen() {
               word={item}
               isActive={index === currentIndex}
               flipSignal={flipSignal}
+              maxHeight={cardMaxHeight}
             />
           </View>
         )}
@@ -483,8 +487,17 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   cardPage: {
+    flex: 1,
+    minHeight: 0,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  cardList: {
+    flex: 1,
+    minHeight: 0,
+  },
+  cardListContent: {
+    alignItems: 'stretch',
   },
   navigation: {
     flexDirection: 'row',

@@ -235,7 +235,8 @@ Create exactly 10 multiple-choice questions with the following requirements:
 3. Do not ask "What is the meaning of X?". Use the word naturally in a sentence with a blank.
 4. Each question has exactly 4 choices. Only one answer is correct.
 5. Include brief explanations in both Korean and Japanese for each question.
-6. Questions should feel like real TOEIC exam questions in business, office, or formal contexts.
+6. The Japanese explanation will be saved to Supabase quiz_explanations using language "jp" and the explanation column, so explanations.jp must contain the complete Japanese explanation text.
+7. Questions should feel like real TOEIC exam questions in business, office, or formal contexts.
 
 Return only valid JSON:
 {

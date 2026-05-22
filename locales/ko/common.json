@@ -161,6 +161,7 @@
     "createFailGeneric": "주차 모의고사를 생성하는 중 오류가 발생했습니다."
   },
   "weeklyQuiz": {
+    "title": "{{year}}년 {{month}}월 {{week}}주차 토익 part.5 모의고사",
     "defaultTitle": "주차 모의고사",
     "invalidWeek": "잘못된 주차입니다.",
     "noQuiz": "해당 주차의 모의고사가 아직 준비되지 않았습니다.",

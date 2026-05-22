@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, useWindowDimensions } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, useWindowDimensions, ScrollView } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -25,11 +25,13 @@ type FlipCardProps = {
   flipSignal?: number;
   /** 현재 화면에서 활성 카드인지 여부 (true일 때만 flipSignal에 반응) */
   isActive?: boolean;
+  maxHeight?: number;
 };
 
 /** 헤더·프로그레스·네비·광고·마진 제외한 카드 높이용 여백 */
-const CARD_VERTICAL_PADDING = 360;
-const MIN_CARD_HEIGHT = 280;
+const DESKTOP_VERTICAL_RESERVE = 260;
+const MOBILE_MIN_CARD_HEIGHT = 220;
+const DESKTOP_MIN_CARD_HEIGHT = 280;
 const MAX_CARD_HEIGHT = 560;
 /** 카드 상하 마진(하단 네비와 겹치지 않도록) */
 const CARD_MARGIN_VERTICAL = 10;
@@ -42,6 +44,7 @@ export default function FlipCard({
   onFlip,
   flipSignal,
   isActive,
+  maxHeight,
 }: FlipCardProps) {
   const { t } = useTranslation();
   const resolvedMeaning = meaningLabel ?? t('flashcard.meaning');
@@ -50,9 +53,16 @@ export default function FlipCard({
   const { width, height } = useWindowDimensions();
   const isMobile = width < MOBILE_BREAKPOINT;
   const cardWidth = isMobile ? Math.min(width - 40, MAX_CARD_WIDTH) : width - 40;
+  const minCardHeight = isMobile ? MOBILE_MIN_CARD_HEIGHT : DESKTOP_MIN_CARD_HEIGHT;
+  const availableCardHeight = Math.max(
+    160,
+    typeof maxHeight === 'number' && Number.isFinite(maxHeight)
+      ? maxHeight
+      : height - DESKTOP_VERTICAL_RESERVE
+  );
   const cardHeight = Math.max(
-    MIN_CARD_HEIGHT,
-    Math.min(MAX_CARD_HEIGHT, height - CARD_VERTICAL_PADDING)
+    Math.min(minCardHeight, availableCardHeight),
+    Math.min(MAX_CARD_HEIGHT, availableCardHeight)
   );
   const { colors } = useTheme();
   const [isFlipped, setIsFlipped] = useState(false);
@@ -109,6 +119,7 @@ export default function FlipCard({
         {
           width: cardWidth,
           height: cardHeight,
+          maxHeight: '100%',
           marginVertical: CARD_MARGIN_VERTICAL,
         },
       ]}
@@ -117,6 +128,7 @@ export default function FlipCard({
       <Animated.View
         style={[
           styles.card,
+          isMobile && styles.mobileCard,
           styles.front,
           frontAnimatedStyle,
           {
@@ -126,13 +138,16 @@ export default function FlipCard({
           },
         ]}>
         <Text style={[styles.label, { color: colors.textSecondary }]}>{t('flashcard.english')}</Text>
-        <Text style={[styles.word, { color: colors.text }]}>{word.word}</Text>
+        <Text style={[styles.word, isMobile && styles.mobileWord, { color: colors.text }]}>
+          {word.word}
+        </Text>
         <Text style={[styles.hint, { color: colors.textTertiary }]}>{t('flashcard.tapHint')}</Text>
       </Animated.View>
 
       <Animated.View
         style={[
           styles.card,
+          isMobile && styles.mobileCard,
           styles.back,
           backAnimatedStyle,
           {
@@ -142,25 +157,30 @@ export default function FlipCard({
           },
         ]}
         collapsable={false}>
-        <Text style={[styles.label, { color: colors.textSecondary }]}>
-          {resolvedMeaning}
-        </Text>
-        <Text style={[styles.meaning, { color: colors.primary }]}>
-          {word.meaning || ' '}
-        </Text>
-        <View style={[styles.divider, { backgroundColor: colors.divider }]} />
-        <Text style={[styles.exampleLabel, { color: colors.textSecondary }]}>
-          {resolvedExampleEn}
-        </Text>
-        <Text style={[styles.example, styles.exampleEn, { color: colors.text }]}>
-          {word.example_en || ' '}
-        </Text>
-        <Text style={[styles.exampleLabel, { color: colors.textSecondary }]}>
-          {resolvedExampleLocal}
-        </Text>
-        <Text style={[styles.example, { color: colors.text }]}>
-          {word.example_local || ' '}
-        </Text>
+        <ScrollView
+          style={styles.backScroll}
+          contentContainerStyle={styles.backContent}
+          showsVerticalScrollIndicator={false}>
+          <Text style={[styles.label, { color: colors.textSecondary }]}>
+            {resolvedMeaning}
+          </Text>
+          <Text style={[styles.meaning, isMobile && styles.mobileMeaning, { color: colors.primary }]}>
+            {word.meaning || ' '}
+          </Text>
+          <View style={[styles.divider, { backgroundColor: colors.divider }]} />
+          <Text style={[styles.exampleLabel, { color: colors.textSecondary }]}>
+            {resolvedExampleEn}
+          </Text>
+          <Text style={[styles.example, isMobile && styles.mobileExample, styles.exampleEn, { color: colors.text }]}>
+            {word.example_en || ' '}
+          </Text>
+          <Text style={[styles.exampleLabel, { color: colors.textSecondary }]}>
+            {resolvedExampleLocal}
+          </Text>
+          <Text style={[styles.example, isMobile && styles.mobileExample, { color: colors.text }]}>
+            {word.example_local || ' '}
+          </Text>
+        </ScrollView>
       </Animated.View>
     </TouchableOpacity>
   );
@@ -184,11 +204,23 @@ const styles = StyleSheet.create({
     elevation: 5,
     borderWidth: 2,
   },
+  mobileCard: {
+    padding: 22,
+    borderRadius: 18,
+  },
   front: {
     zIndex: 1,
   },
   back: {
     zIndex: 0,
+  },
+  backScroll: {
+    width: '100%',
+  },
+  backContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   label: {
     fontSize: 14,
@@ -202,6 +234,9 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     textAlign: 'center',
   },
+  mobileWord: {
+    fontSize: 34,
+  },
   hint: {
     position: 'absolute',
     bottom: 30,
@@ -213,6 +248,10 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     textAlign: 'center',
     marginBottom: 12,
+  },
+  mobileMeaning: {
+    fontSize: 26,
+    marginBottom: 8,
   },
   divider: {
     width: '80%',
@@ -230,6 +269,10 @@ const styles = StyleSheet.create({
     fontSize: 16,
     textAlign: 'center',
     lineHeight: 24,
+  },
+  mobileExample: {
+    fontSize: 14,
+    lineHeight: 20,
   },
   exampleEn: {
     marginBottom: 20,

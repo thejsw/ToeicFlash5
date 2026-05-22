@@ -12,7 +12,7 @@ import { useRouter, useFocusEffect } from 'expo-router';
 import { useTheme } from '@/lib/theme';
 import { useAuth } from '@/hooks/useAuth';
 import { ClipboardList } from 'lucide-react-native';
-import { getCurrentWeekNum, formatWeeklyQuizTitle } from '@/lib/weekUtils';
+import { getCurrentWeekNum, parseWeekNum } from '@/lib/weekUtils';
 import { listAvailableWeeklyQuizzes, isAuthError, type WeeklyQuizItem } from '@/lib/supabase';
 import { generateWeeklyQuizQuestions } from '@/lib/llm';
 import { useTranslation } from 'react-i18next';
@@ -127,7 +127,7 @@ export default function TestScreen() {
             <ClipboardList size={32} color={colors.primary} />
           </View>
           <Text style={[styles.cardTitle, { color: colors.text }]}>
-            {formatWeeklyQuizTitle(currentWeekNum)}
+            {t('weeklyQuiz.title', parseWeekNum(currentWeekNum))}
           </Text>
           <Text style={[styles.cardDesc, { color: colors.textSecondary }]}>
             {hasCurrentQuiz ? t('testTab.savedQuiz') : t('testTab.thisWeekQuiz')}
@@ -152,7 +152,9 @@ export default function TestScreen() {
               style={[styles.card, styles.cardCompact, { backgroundColor: colors.surface, borderColor: colors.border }]}
               onPress={() => handleStart(q.week_num)}
               activeOpacity={0.7}>
-              <Text style={[styles.cardTitle, { color: colors.text }]}>{formatWeeklyQuizTitle(q.week_num)}</Text>
+              <Text style={[styles.cardTitle, { color: colors.text }]}>
+                {t('weeklyQuiz.title', parseWeekNum(q.week_num))}
+              </Text>
               <Text style={[styles.cardDesc, { color: colors.textSecondary }]}>{t('testTab.retryList')}</Text>
               <View style={[styles.button, styles.buttonOutline, { borderColor: colors.primary }]}>
                 <Text style={[styles.buttonText, { color: colors.primary }]}>{t('testTab.startOver')}</Text>

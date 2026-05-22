@@ -6,13 +6,14 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
+  ScrollView,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useTheme } from '@/lib/theme';
 import { ChevronLeft } from 'lucide-react-native';
 import { QuizQuestion } from '@/types/quiz';
 import { fetchQuizByWeek, getCurrentUserId, getUserSettings } from '@/lib/supabase';
-import { formatWeeklyQuizTitle } from '@/lib/weekUtils';
+import { parseWeekNum } from '@/lib/weekUtils';
 import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -32,7 +33,7 @@ export default function WeekQuizScreen() {
   const [error, setError] = useState<string | null>(null);
 
   const num = weekNum ? parseInt(weekNum, 10) : 0;
-  const title = Number.isNaN(num) ? '' : formatWeeklyQuizTitle(num);
+  const title = Number.isNaN(num) ? '' : t('weeklyQuiz.title', parseWeekNum(num));
 
   const loadQuestions = useCallback(async () => {
     try {
@@ -175,7 +176,10 @@ export default function WeekQuizScreen() {
         </Text>
       </View>
 
-      <View style={styles.questionContainer}>
+      <ScrollView
+        style={styles.questionScroll}
+        contentContainerStyle={styles.questionContainer}
+        showsVerticalScrollIndicator={false}>
         <Text style={[styles.questionNumber, { color: colors.primary }]}>
           {t('quiz.questionLabel', { n: currentQuestionIndex + 1 })}
         </Text>
@@ -203,7 +207,7 @@ export default function WeekQuizScreen() {
             );
           })}
         </View>
-      </View>
+      </ScrollView>
 
       <View
         style={[
@@ -264,23 +268,27 @@ const styles = StyleSheet.create({
   errorText: { fontSize: 16, textAlign: 'center' },
   retryButton: { paddingVertical: 14, paddingHorizontal: 32, borderRadius: 12 },
   retryButtonText: { color: '#ffffff', fontSize: 16, fontWeight: '600' },
-  questionContainer: {
+  questionScroll: {
     flex: 1,
+    minHeight: 0,
+  },
+  questionContainer: {
     paddingHorizontal: 20,
     paddingTop: 24,
+    paddingBottom: 24,
   },
   questionNumber: { fontSize: 14, fontWeight: '600', marginBottom: 12 },
   questionText: { fontSize: 18, lineHeight: 28, marginBottom: 32 },
   choicesContainer: { gap: 12 },
   choiceButton: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     padding: 16,
     borderRadius: 12,
     gap: 12,
   },
   choiceLabel: { fontSize: 16, fontWeight: '600', minWidth: 24 },
-  choiceText: { fontSize: 16, flex: 1 },
+  choiceText: { fontSize: 16, lineHeight: 24, flex: 1, flexShrink: 1 },
   footer: {
     paddingHorizontal: 20,
     paddingVertical: 20,

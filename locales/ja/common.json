@@ -161,6 +161,7 @@
     "createFailGeneric": "週別模擬試験の作成中にエラーが発生しました。"
   },
   "weeklyQuiz": {
+    "title": "{{year}}年{{month}}月第{{week}}週 TOEIC part.5 模擬試験",
     "defaultTitle": "週別模擬試験",
     "invalidWeek": "週番号が無効です。",
     "noQuiz": "この週の模擬試験はまだ準備されていません。",

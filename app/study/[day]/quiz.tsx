@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
+  ScrollView,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useTheme } from '@/lib/theme';
@@ -172,7 +173,10 @@ export default function DayQuizScreen() {
         </Text>
       </View>
 
-      <View style={styles.questionContainer}>
+      <ScrollView
+        style={styles.questionScroll}
+        contentContainerStyle={styles.questionContainer}
+        showsVerticalScrollIndicator={false}>
         <Text style={[styles.questionNumber, { color: colors.primary }]}>
           {t('quiz.questionLabel', { n: currentQuestionIndex + 1 })}
         </Text>
@@ -201,7 +205,7 @@ export default function DayQuizScreen() {
             );
           })}
         </View>
-      </View>
+      </ScrollView>
 
       <View
         style={[
@@ -294,10 +298,14 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-  questionContainer: {
+  questionScroll: {
     flex: 1,
+    minHeight: 0,
+  },
+  questionContainer: {
     paddingHorizontal: 20,
     paddingTop: 24,
+    paddingBottom: 24,
   },
   questionNumber: {
     fontSize: 14,
@@ -314,7 +322,7 @@ const styles = StyleSheet.create({
   },
   choiceButton: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     padding: 16,
     borderRadius: 12,
     gap: 12,
@@ -327,6 +335,8 @@ const styles = StyleSheet.create({
   choiceText: {
     fontSize: 16,
     flex: 1,
+    lineHeight: 24,
+    flexShrink: 1,
   },
   footer: {
     paddingHorizontal: 20,

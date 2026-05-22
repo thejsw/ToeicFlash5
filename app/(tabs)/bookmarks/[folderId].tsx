@@ -37,7 +37,7 @@ export default function FolderBookmarksScreen() {
   const router = useRouter();
   const { user, handleSessionError } = useAuth();
   const userId = user?.id ?? null;
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
   const { colors, theme, toggleTheme } = useTheme();
   const insets = useSafeAreaInsets();
   const bottomInset = Math.max(insets.bottom, 0);
@@ -198,6 +198,7 @@ export default function FolderBookmarksScreen() {
   }
 
   const currentWord = words[currentIndex];
+  const cardMaxHeight = Math.max(200, height - 300 - bottomInset);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -249,9 +250,11 @@ export default function FolderBookmarksScreen() {
         decelerationRate="fast"
         onViewableItemsChanged={onViewableItemsChanged}
         viewabilityConfig={viewabilityConfig}
+        style={styles.cardList}
+        contentContainerStyle={styles.cardListContent}
         renderItem={({ item }) => (
           <View style={[styles.cardPage, { width }]}>
-            <FlipCard word={item} />
+            <FlipCard word={item} maxHeight={cardMaxHeight} />
           </View>
         )}
         keyExtractor={(item) => item.id}
@@ -329,7 +332,9 @@ const styles = StyleSheet.create({
   progressText: { fontSize: 14, marginBottom: 8, textAlign: 'center' },
   progressBar: { height: 8, borderRadius: 4, overflow: 'hidden' },
   progressFill: { height: '100%', borderRadius: 4 },
-  cardPage: { alignItems: 'center', justifyContent: 'center' },
+  cardPage: { flex: 1, minHeight: 0, alignItems: 'center', justifyContent: 'center' },
+  cardList: { flex: 1, minHeight: 0 },
+  cardListContent: { alignItems: 'stretch' },
   navigation: {
     flexDirection: 'row',
     justifyContent: 'space-between',
