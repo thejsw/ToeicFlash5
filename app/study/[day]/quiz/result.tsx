@@ -7,10 +7,7 @@ import { QuizQuestion, QuizResult } from '@/types/quiz';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getCurrentUserId, upsertUserProgress } from '@/lib/supabase';
 import { useTranslation } from 'react-i18next';
-<<<<<<< HEAD
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-=======
->>>>>>> ab247db19aef375cf71ff64e670f0ad175e55db5
 
 export default function DayQuizResultScreen() {
   const { t } = useTranslation();
@@ -159,7 +156,6 @@ export default function DayQuizResultScreen() {
         </View>
       </ScrollView>
 
-<<<<<<< HEAD
       <View
         style={[
           styles.footer,
@@ -169,9 +165,6 @@ export default function DayQuizResultScreen() {
             paddingBottom: 16 + bottomInset,
           },
         ]}>
-=======
-      <View style={[styles.footer, { backgroundColor: colors.surface, borderTopColor: colors.border }]}>
->>>>>>> ab247db19aef375cf71ff64e670f0ad175e55db5
         <TouchableOpacity style={[styles.button, { borderColor: colors.border }]} onPress={handleRetry}>
           <Text style={[styles.buttonText, { color: colors.text }]}>{t('quizResult.retry')}</Text>
         </TouchableOpacity>

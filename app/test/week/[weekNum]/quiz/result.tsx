@@ -15,7 +15,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function WeekQuizResultScreen() {
   const { t } = useTranslation();
-  const { t } = useTranslation();
   const router = useRouter();
   const { weekNum, questions: questionsParam, userAnswers: userAnswersParam } =
     useLocalSearchParams<{

@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   ScrollView,
+  Alert,
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useTheme } from '@/lib/theme';
@@ -13,13 +14,9 @@ import { useAuth } from '@/hooks/useAuth';
 import { ClipboardList } from 'lucide-react-native';
 import { getCurrentWeekNum, formatWeeklyQuizTitle } from '@/lib/weekUtils';
 import { listAvailableWeeklyQuizzes, isAuthError, type WeeklyQuizItem } from '@/lib/supabase';
-<<<<<<< HEAD
-import { useTranslation } from 'react-i18next';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-=======
 import { generateWeeklyQuizQuestions } from '@/lib/llm';
 import { useTranslation } from 'react-i18next';
->>>>>>> ab247db19aef375cf71ff64e670f0ad175e55db5
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 function withTimeout<T>(promise: Promise<T>, ms: number, timeoutMessage: string): Promise<T> {
   return Promise.race([
@@ -38,6 +35,7 @@ export default function TestScreen() {
   const insets = useSafeAreaInsets();
   const bottomInset = Math.max(insets.bottom, 0);
   const [loading, setLoading] = useState(true);
+  const [creating, setCreating] = useState<number | null>(null);
   const [quizzes, setQuizzes] = useState<WeeklyQuizItem[]>([]);
   const [currentWeekNum] = useState(() => getCurrentWeekNum());
 
@@ -69,8 +67,6 @@ export default function TestScreen() {
     router.push(`/test/week/${weekNum}/quiz`);
   };
 
-<<<<<<< HEAD
-=======
   const handleCreateAndStart = async () => {
     setCreating(currentWeekNum);
     try {
@@ -105,7 +101,6 @@ export default function TestScreen() {
     }
   };
 
->>>>>>> ab247db19aef375cf71ff64e670f0ad175e55db5
   if (loading) {
     return (
       <View style={[styles.container, styles.centered, { backgroundColor: colors.background }]}>
@@ -135,17 +130,6 @@ export default function TestScreen() {
             {formatWeeklyQuizTitle(currentWeekNum)}
           </Text>
           <Text style={[styles.cardDesc, { color: colors.textSecondary }]}>
-<<<<<<< HEAD
-            {hasCurrentQuiz ? t('testTab.savedQuiz') : t('testTab.preparingBody')}
-          </Text>
-          <TouchableOpacity
-            style={[styles.button, { backgroundColor: hasCurrentQuiz ? colors.primary : colors.border }]}
-            onPress={() => handleStart(currentWeekNum)}
-            disabled={!hasCurrentQuiz}>
-            <Text style={[styles.buttonText, !hasCurrentQuiz && { color: colors.textSecondary }]}>
-              {hasCurrentQuiz ? t('testTab.startOver') : t('testTab.preparing')}
-            </Text>
-=======
             {hasCurrentQuiz ? t('testTab.savedQuiz') : t('testTab.thisWeekQuiz')}
           </Text>
           <TouchableOpacity
@@ -157,7 +141,6 @@ export default function TestScreen() {
             ) : (
               <Text style={styles.buttonText}>{hasCurrentQuiz ? t('testTab.startOver') : t('testTab.start')}</Text>
             )}
->>>>>>> ab247db19aef375cf71ff64e670f0ad175e55db5
           </TouchableOpacity>
         </View>
 

@@ -11,14 +11,9 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useTheme } from '@/lib/theme';
 import { ChevronLeft } from 'lucide-react-native';
 import { QuizQuestion } from '@/types/quiz';
-<<<<<<< HEAD
 import { fetchQuizByDay, getCurrentUserId, getUserSettings } from '@/lib/supabase';
 import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-=======
-import { fetchQuizByDay } from '@/lib/supabase';
-import { useTranslation } from 'react-i18next';
->>>>>>> ab247db19aef375cf71ff64e670f0ad175e55db5
 
 export default function DayQuizScreen() {
   const { t } = useTranslation();

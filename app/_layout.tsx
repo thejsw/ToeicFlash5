@@ -10,7 +10,6 @@ export default function RootLayout() {
   useFrameworkReady();
 
   return (
-<<<<<<< HEAD
     <SafeAreaProvider>
       <ThemeProvider>
         <AuthProvider>
@@ -26,20 +25,5 @@ export default function RootLayout() {
         </AuthProvider>
       </ThemeProvider>
     </SafeAreaProvider>
-=======
-    <ThemeProvider>
-      <AuthProvider>
-        <>
-          <Stack screenOptions={{ headerShown: false }}>
-            <Stack.Screen name="(tabs)" />
-            <Stack.Screen name="auth" />
-            <Stack.Screen name="test" />
-            <Stack.Screen name="+not-found" />
-          </Stack>
-          <StatusBar style="auto" />
-        </>
-      </AuthProvider>
-    </ThemeProvider>
->>>>>>> ab247db19aef375cf71ff64e670f0ad175e55db5
   );
 }
