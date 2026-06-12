@@ -1,54 +1,86 @@
-📄 토익 단어장 앱 개인정보처리방침
+# TOEIC Flash5
 
-**TOEIC Vocabulary(이하 "앱")**는 이용자의 개인정보를 매우 중요하게 생각하며, 「개인정보 보호법」 및 관련 법령을 준수합니다.
-본 앱은 개인정보를 수집하지 않으며, 광고 서비스 제공을 위해 Google AdMob을 사용합니다.
-아래는 본 앱의 개인정보처리방침입니다.
+AI-powered TOEIC Vocabulary Learning App
 
-1. 수집하는 개인정보
+TOEIC Flash5 is a mobile application designed to help learners efficiently memorize TOEIC vocabulary through flashcards, quizzes, bookmarks, and AI-generated practice questions.
 
-본 앱은 이용자의 어떠한 개인정보도 수집하지 않습니다.
+## Features
 
-이름, 이메일, 연락처 등 직접 입력 정보
+### 📚 Daily Vocabulary Learning
+- Learn TOEIC vocabulary organized by Day
+- Flashcard-based learning experience
+- Example sentences and multilingual meanings
+- Resume learning from previous progress
 
-기기 정보, 앱 사용 기록 등 자동 수집 정보
-→ 모두 수집하지 않습니다.
+### 🤖 AI Quiz Generation
+- Generate TOEIC-style vocabulary questions using OpenAI
+- Multiple-choice questions with explanations
+- Automatic quiz generation through Supabase Edge Functions
 
-2. 개인정보의 제3자 제공
+### 📝 Weekly Mock Exams
+- Weekly TOEIC Part 5 vocabulary quizzes
+- Automatically generated every week
+- Shared quiz sets for all users
 
-본 앱은 개인정보를 어떠한 외부 기관·기업에도 제공하지 않습니다.
+### 🔖 Bookmark System
+- Save difficult words
+- Organize vocabulary into custom folders
+- Review bookmarked words anytime
 
-3. 개인정보 처리 위탁
+### 👤 User Account
+- Google Login
+- Learning progress synchronization
+- Personalized settings
+- Account deletion support
 
-본 앱은 개인정보를 처리하기 위한 어떠한 위탁도 수행하지 않습니다.
+### 🌏 Multi-language Support
+- Korean and Japanese learning content
+- Language-specific explanations and meanings
 
-4. 광고 서비스(Google AdMob)
+---
 
-본 앱은 Google AdMob 광고를 포함하고 있으며, 광고 제공 과정에서 Google이 자동으로 일부 정보를 수집할 수 있습니다.
-이는 앱 개발자가 직접 수집·저장하는 정보가 아니며, 광고 제공을 위한 Google의 정책에 따라 처리됩니다.
+## Tech Stack
 
-Google의 개인정보처리방침은 아래에서 확인할 수 있습니다:
-🔗 https://policies.google.com/privacy?hl=ko
+### Frontend
+- Expo
+- React Native
+- Expo Router
+- TypeScript
 
-5. 쿠키 및 유사 기술 사용 여부
+### Backend
+- Supabase
+  - PostgreSQL
+  - Authentication
+  - Storage
+  - Edge Functions
 
-본 앱은 자체적으로 쿠키 또는 앱 사용 데이터를 저장하지 않습니다.
-단, Google AdMob 광고는 광고 효율 개선을 위해 쿠키·광고 ID를 사용할 수 있습니다.
+### AI
+- OpenAI API
 
-6. 어린이의 개인정보 보호
+### Cloud
+- Supabase Edge Functions
+- Cron Jobs (pg_cron)
 
-본 앱은 만 14세 미만 아동의 개인정보를 수집하지 않습니다.
-광고 노출은 Google의 아동 보호 정책을 준수합니다.
+---
 
-7. 개인정보 보호책임자
+## Architecture
 
-본 앱은 개인정보를 수집하지 않으므로 별도의 개인정보 보호책임자는 지정하지 않습니다.
-앱 관련 문의는 아래 이메일로 연락할 수 있습니다.
-
-이메일: (본인 이메일 입력)
-
-8. 개인정보처리방침 변경
-
-본 방침은 관련 법령·정책 변경에 따라 수정될 수 있습니다.
-변경 시 앱 업데이트 혹은 공지사항을 통해 안내드립니다.
-
-시행일자: 2025년 1월 1일
+```text
+Mobile App (Expo)
+        │
+        ▼
+ Supabase Auth
+        │
+        ▼
+ PostgreSQL
+        │
+        ├── Vocabulary Data
+        ├── User Progress
+        ├── Bookmarks
+        └── Quiz Data
+        │
+        ▼
+ Supabase Edge Functions
+        │
+        ▼
+    OpenAI API
