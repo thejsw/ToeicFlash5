@@ -4,6 +4,12 @@ AI-powered TOEIC Vocabulary Learning App
 
 TOEIC Flash5 is a mobile application designed to help learners efficiently memorize TOEIC vocabulary through flashcards, quizzes, bookmarks, and AI-generated practice questions.
 
+TOEIC learning platform is an available
+
+WEB: https://toeicflash5.vercel.app/
+
+Google Play: https://play.google.com/store/apps/details?id=com.thejsw.toeicflashcardvoca
+
 ## Features
 
 ### 📚 Daily Vocabulary Learning
